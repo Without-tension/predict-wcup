@@ -1,0 +1,31 @@
+name: DB Matches Sync Cron
+
+on:
+  schedule:
+    # Запуск о 06:00 та 15:00 UTC (що відповідає 09:00 та 18:00 за Києвом)
+    - cron: '0 6,15 * * *'
+  workflow_dispatch: # Дозволяє запустити скрипт вручну кнопкою з GitHub
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository код
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/checks/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        pip install requests supabase
+
+    - name: Execute Sync Script
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        API_SPORTS_KEY: ${{ secrets.API_SPORTS_KEY }}
+      run: python sync_matches.py
