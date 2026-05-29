@@ -104,10 +104,8 @@
 # if __name__ == "__main__":
 #     main()
 
-
 import os
 import requests
-from datetime import datetime
 from supabase import create_client, Client
 
 # Налаштування Supabase
@@ -122,56 +120,71 @@ HEADERS = {
     "x-rapidapi-key": API_SPORTS_KEY
 }
 
-def fetch_current_cl_matches():
-    # Запитуємо сезон 2025 (який фінішує в травні 2026).
-    # Додаємо фільтр live або просто витягуємо фінальний етап через раунд, 
-    # але надійніше взяти всі матчі сезону 2025 і відфільтрувати останні травневі ігри.
-    url = "https://v3.football.api-sports.io/fixtures?league=2&season=2025"
-    response = requests.get(url, headers=HEADERS).json()
-    return response.get("response", [])
+def fetch_cl_fixtures_multiseason():
+    all_fixtures = []
+    # Перевіряємо обидва можливі сезони для поточного фіналу 2026 року
+    for season in ["2025", "2026"]:
+        print(f"📡 Запит матчів ЛЧ за сезон {season}...")
+        url = f"https://v3.football.api-sports.io/fixtures?league=2&season={season}"
+        try:
+            response = requests.get(url, headers=HEADERS).json()
+            fixtures = response.get("response", [])
+            print(f"   Отримано {len(fixtures)} матчів.")
+            all_fixtures.extend(fixtures)
+        except Exception as e:
+            print(f"⚠️ Помилка запиту сезону {season}: {e}")
+    return all_fixtures
 
 def fetch_odds_for_fixture(fixture_id):
     url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}"
-    response = requests.get(url, headers=HEADERS).json()
-    res_data = response.get("response", [])
-    
-    if not res_data:
-        return None, None, None
-    
-    bookmakers = res_data[0].get("bookmakers", [])
-    if not bookmakers:
-        return None, None, None
+    try:
+        response = requests.get(url, headers=HEADERS).json()
+        res_data = response.get("response", [])
         
-    bets = bookmakers[0].get("bets", [])
-    for bet in bets:
-        if bet.get("id") == 1: # Маркет 1X2
-            values = bet.get("values", [])
-            home_odds = next((float(v["odds"]) for v in values if v["value"] == "Home"), None)
-            draw_odds = next((float(v["odds"]) for v in values if v["value"] == "Draw"), None)
-            away_odds = next((float(v["odds"]) for v in values if v["value"] == "Away"), None)
-            return home_odds, draw_odds, away_odds
+        if not res_data:
+            return None, None, None
+        
+        bookmakers = res_data[0].get("bookmakers", [])
+        if not bookmakers:
+            return None, None, None
             
+        bets = bookmakers[0].get("bets", [])
+        for bet in bets:
+            if bet.get("id") == 1: # Маркет 1X2 (Match Winner)
+                values = bet.get("values", [])
+                home_odds = next((float(v["odds"]) for v in values if v["value"] == "Home"), None)
+                draw_odds = next((float(v["odds"]) for v in values if v["value"] == "Draw"), None)
+                away_odds = next((float(v["odds"]) for v in values if v["value"] == "Away"), None)
+                return home_odds, draw_odds, away_odds
+    except Exception as e:
+        print(f"⚠️ Не вдалося отримати коефіцієнти для {fixture_id}: {e}")
     return None, None, None
 
 def main():
-    print("🔄 Запуск синхронізації АКТУАЛЬНИХ матчів ЛЧ (Травень 2026)...")
-    fixtures = fetch_current_cl_matches()
-    
-    # Якщо загальний список порожній, спробуємо стукнути безпосередньо в ендпоінт поточного дня
-    if not fixtures:
-        print("⚠️ Загальний запит повернув 0. Пробуємо отримати матчі ЛЧ через фільтр поточної дати...")
-        today_str = datetime.now().strftime('%Y-%m-%d')
-        url = f"https://v3.football.api-sports.io/fixtures?league=2&date={today_str}"
-        response = requests.get(url, headers=HEADERS).json()
-        fixtures = response.get("response", [])
-
-    print(f"Знайдено {len(fixtures)} актуальних матчів ЛЧ.")
+    print("🔄 Запуск глобальної синхронізації фіналу ЛЧ 2026...")
+    fixtures = fetch_cl_fixtures_multiseason()
 
     if not fixtures:
-        print("❌ Не вдалося знайти ігри фінальної стадії в API. Можливо, провайдер змінив ID ліги для плей-оф.")
-        return
+        print("❌ Жодного матчу в ЛЧ (league=2) не знайдено. Спробуємо зробити запит суто на поточний тиждень...")
+        # Резервний варіант: беремо матчі ліги без прив'язки до сезону (API іноді це дозволяє для Live/Upcoming)
+        url_fallback = "https://v3.football.api-sports.io/fixtures?league=2&next=10"
+        fixtures = requests.get(url_fallback, headers=HEADERS).json().get("response", [])
+        print(f"   Резервний запит найближчих матчів повернув: {len(fixtures)} ігор.")
 
-    for item in fixtures:
+    # Відсікаємо дублікати, якщо вони прилетіли з різних сезонів
+    seen_ids = set()
+    unique_fixtures = []
+    for f in fixtures:
+        f_id = f.get("fixture", {}).get("id")
+        if f_id not in seen_ids:
+            seen_ids.add(f_id)
+            unique_fixtures.add(f) if isinstance(unique_fixtures, list) else unique_fixtures.append(f)
+
+    # Якщо це фінальна стадія, нам потрібні найсвіжіші ігри (вони в кінці списку, тому розгортаємо)
+    recent_fixtures = list(reversed(unique_fixtures))
+
+    # Записуємо топ-10 актуальних матчів (включаючи фінал)
+    for item in recent_fixtures[:10]:
         fixture = item.get("fixture", {})
         teams = item.get("teams", {})
         goals = item.get("goals", {})
@@ -189,8 +202,8 @@ def main():
         home_score = goals.get("home")
         away_score = goals.get("away")
 
-        # Отримуємо коефіцієнти під фінал
-        print(f"🔍 Запит коефіцієнтів для: {home_team} - {away_team}...")
+        # Тягнемо коефіцієнти букмереів
+        print(f"🔍 Отримуємо лінії на матч: {home_team} vs {away_team}...")
         home_odds, draw_odds, away_odds = fetch_odds_for_fixture(fixture_id)
 
         match_data = {
@@ -210,11 +223,12 @@ def main():
 
         try:
             supabase.table("matches").upsert(match_data).execute()
-            print(f"🏆 Фінал/Матч записано: {home_team} vs {away_team} ({home_odds or '—'} | {draw_odds or '—'} | {away_odds or '—'})")
+            odds_str = f"({home_odds} | {draw_odds} | {away_odds})" if home_odds else "(коефіцієнти відсутні)"
+            print(f"🚀 Записано: {home_team} vs {away_team} -> {odds_str}")
         except Exception as e:
-            print(f"⚠️ Помилка запису в Supabase: {e}")
+            print(f"⚠️ Помилка Supabase для матчу {fixture_id}: {e}")
 
-    print("✅ Синхронізацію актуального фіналу ЛЧ 2026 завершено!")
+    print("✅ Актуальну синхронізацію ЛЧ успішно завершено!")
 
 if __name__ == "__main__":
     main()
