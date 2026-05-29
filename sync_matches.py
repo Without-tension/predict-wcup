@@ -107,6 +107,7 @@
 
 import os
 import requests
+from datetime import datetime
 from supabase import create_client, Client
 
 # Налаштування Supabase
@@ -121,9 +122,11 @@ HEADERS = {
     "x-rapidapi-key": API_SPORTS_KEY
 }
 
-def fetch_champions_league_matches():
-    # Тепер ставимо чітко: ЛЧ (league=2), сезон старту (2024)
-    url = "https://v3.football.api-sports.io/fixtures?league=2&season=2024"
+def fetch_current_cl_matches():
+    # Запитуємо сезон 2025 (який фінішує в травні 2026).
+    # Додаємо фільтр live або просто витягуємо фінальний етап через раунд, 
+    # але надійніше взяти всі матчі сезону 2025 і відфільтрувати останні травневі ігри.
+    url = "https://v3.football.api-sports.io/fixtures?league=2&season=2025"
     response = requests.get(url, headers=HEADERS).json()
     return response.get("response", [])
 
@@ -141,7 +144,7 @@ def fetch_odds_for_fixture(fixture_id):
         
     bets = bookmakers[0].get("bets", [])
     for bet in bets:
-        if bet.get("id") == 1: # Маркет 1X2 (Результат матчу)
+        if bet.get("id") == 1: # Маркет 1X2
             values = bet.get("values", [])
             home_odds = next((float(v["odds"]) for v in values if v["value"] == "Home"), None)
             draw_odds = next((float(v["odds"]) for v in values if v["value"] == "Draw"), None)
@@ -151,19 +154,24 @@ def fetch_odds_for_fixture(fixture_id):
     return None, None, None
 
 def main():
-    print("🔄 Запуск синхронізації фінальних матчів ЛЧ (Сезон 2024)...")
-    fixtures = fetch_champions_league_matches()
-    print(f"Всього знайдено {len(fixtures)} матчів в базі ЛЧ.")
+    print("🔄 Запуск синхронізації АКТУАЛЬНИХ матчів ЛЧ (Травень 2026)...")
+    fixtures = fetch_current_cl_matches()
+    
+    # Якщо загальний список порожній, спробуємо стукнути безпосередньо в ендпоінт поточного дня
+    if not fixtures:
+        print("⚠️ Загальний запит повернув 0. Пробуємо отримати матчі ЛЧ через фільтр поточної дати...")
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        url = f"https://v3.football.api-sports.io/fixtures?league=2&date={today_str}"
+        response = requests.get(url, headers=HEADERS).json()
+        fixtures = response.get("response", [])
+
+    print(f"Знайдено {len(fixtures)} актуальних матчів ЛЧ.")
 
     if not fixtures:
-        print("❌ Матчів не знайдено.")
+        print("❌ Не вдалося знайти ігри фінальної стадії в API. Можливо, провайдер змінив ID ліги для плей-оф.")
         return
 
-    # Розвертаємо список (reversed), щоб фінал і найсвіжіші матчі йшли ПЕРШИМИ
-    recent_fixtures = list(reversed(fixtures))
-
-    # Беремо топ-20 найновіших матчів (фінал, півфінали, чвертьфінали)
-    for item in recent_fixtures[:20]:
+    for item in fixtures:
         fixture = item.get("fixture", {})
         teams = item.get("teams", {})
         goals = item.get("goals", {})
@@ -181,8 +189,8 @@ def main():
         home_score = goals.get("home")
         away_score = goals.get("away")
 
-        # Отримуємо коефіцієнти (для фіналу вони точно будуть!)
-        print(f"🔍 Запит коефіцієнтів для матчу {home_team} - {away_team}...")
+        # Отримуємо коефіцієнти під фінал
+        print(f"🔍 Запит коефіцієнтів для: {home_team} - {away_team}...")
         home_odds, draw_odds, away_odds = fetch_odds_for_fixture(fixture_id)
 
         match_data = {
@@ -202,12 +210,11 @@ def main():
 
         try:
             supabase.table("matches").upsert(match_data).execute()
-            odds_status = f"👍 Коефіцієнти додано ({home_odds} | {draw_odds} | {away_odds})" if home_odds else "❓ Без коефіцієнтів"
-            print(f"🏆 Матч записано в базу: {home_team} vs {away_team} -> {odds_status}")
+            print(f"🏆 Фінал/Матч записано: {home_team} vs {away_team} ({home_odds or '—'} | {draw_odds or '—'} | {away_odds or '—'})")
         except Exception as e:
-            print(f"⚠️ Помилка запису матчу {fixture_id}: {e}")
+            print(f"⚠️ Помилка запису в Supabase: {e}")
 
-    print("✅ Синхронізацію фінальних матчів ЛЧ успішно завершено!")
+    print("✅ Синхронізацію актуального фіналу ЛЧ 2026 завершено!")
 
 if __name__ == "__main__":
     main()
