@@ -104,39 +104,108 @@
 # if __name__ == "__main__":
 #     main()
 
-
 import os
 import requests
+from supabase import create_client, Client
 
+# Налаштування Supabase
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip()
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
+# Налаштування API-Football
 API_SPORTS_KEY = os.environ.get("API_SPORTS_KEY", "").strip()
 HEADERS = {
     "x-rapidapi-host": "v3.football.api-sports.io",
     "x-rapidapi-key": API_SPORTS_KEY
 }
 
-def scout_league(search_query):
-    print(f"\n🔎 Пошук за запитом '{search_query}'...")
-    url = f"https://v3.football.api-sports.io/leagues?search={search_query}"
+def fetch_odds_for_fixture(fixture_id):
+    url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}"
     try:
         response = requests.get(url, headers=HEADERS).json()
-        leagues = response.get("response", [])
-        print(f"Знайдено турнірів: {len(leagues)}")
+        res_data = response.get("response", [])
+        if not res_data: return None, None, None
         
-        for item in leagues:
-            league = item.get("league", {})
-            country = item.get("country", {}).get("name", "")
-            print(f"🏆 ID: {league.get('id')} | Назва: {league.get('name')} | Тип: {league.get('type')} | Країна: {country}")
+        bookmakers = res_data[0].get("bookmakers", [])
+        if not bookmakers: return None, None, None
+            
+        bets = bookmakers[0].get("bets", [])
+        for bet in bets:
+            if bet.get("id") == 1: # Маркет 1X2
+                values = bet.get("values", [])
+                home_odds = next((float(v["odds"]) for v in values if v["value"] == "Home"), None)
+                draw_odds = next((float(v["odds"]) for v in values if v["value"] == "Draw"), None)
+                away_odds = next((float(v["odds"]) for v in values if v["value"] == "Away"), None)
+                return home_odds, draw_odds, away_odds
     except Exception as e:
-        print(f"⚠️ Помилка під час пошуку '{search_query}': {e}")
+        print(f"⚠️ Помилка отримання коефіцієнтів: {e}")
+    return None, None, None
 
 def main():
-    print("🚀 Запуск глобальної розвідки ідентифікаторів в API-Sports...")
+    print("🔄 Пошук фіналу ПСЖ - Арсенал у розкладі на 30 травня 2026...")
     
-    # 1. Шукаємо актуальний ID для Ліги Чемпіонів
-    scout_league("Champions League")
+    # Смикаємо розклад на завтра
+    url = "https://v3.football.api-sports.io/fixtures?date=2026-05-30"
+    response = requests.get(url, headers=HEADERS).json()
+    fixtures = response.get("response", [])
     
-    # 2. Шукаємо всі можливі варіації Чемпіонату Світу
-    scout_league("World Cup")
+    target_fixture = None
+    
+    # Шукаємо матч, де грає Арсенал або ПСЖ
+    for item in fixtures:
+        teams = item.get("teams", {})
+        home = teams.get("home", {}).get("name", "")
+        away = teams.get("away", {}).get("name", "")
+        
+        if "Arsenal" in home or "Arsenal" in away or "Paris Saint Germain" in home or "Paris Saint Germain" in away:
+            target_fixture = item
+            break
+            
+    if not target_fixture:
+        print("❌ Провайдер чомусь не додав матч ПСЖ - Арсенал на дату 2026-05-30.")
+        print("Спробуємо витягнути останні 10 матчів Арсенала, щоб знайти фінал там...")
+        # Резервний пошук через команду Арсенала (зазвичай ID Арсенала в API-Sports це 42, але пошукаємо текстом)
+        url_team = "https://v3.football.api-sports.io/fixtures?team=42&next=5"
+        res_team = requests.get(url_team, headers=HEADERS).json()
+        if res_team.get("response"):
+            target_fixture = res_team.get("response")[0]
+
+    if not target_fixture:
+        print("❌ Не вдалося знайти гру у провайдера.")
+        return
+
+    fixture = target_fixture.get("fixture", {})
+    teams = target_fixture.get("teams", {})
+    
+    fixture_id = fixture.get("id")
+    home_team = teams.get("home", {}).get("name")
+    away_team = teams.get("away", {}).get("name")
+    start_time = fixture.get("date")
+    
+    print(f"🎯 Знайдено матч в API! ID: {fixture_id} | {home_team} vs {away_team}")
+    
+    # Тягнемо коефіцієнти
+    print("🔍 Запитуємо букмекерські коефіцієнти...")
+    home_odds, draw_odds, away_odds = fetch_odds_for_fixture(fixture_id)
+    
+    match_data = {
+        "id": fixture_id,
+        "home_team": home_team,
+        "away_team": away_team,
+        "start_time": start_time,
+        "status": "scheduled"
+    }
+    
+    if home_odds: match_data["home_odds"] = home_odds
+    if draw_odds: match_data["draw_odds"] = draw_odds
+    if away_odds: match_data["away_odds"] = away_odds
+    
+    try:
+        supabase.table("matches").upsert(match_data).execute()
+        print(f"🚀 ФІНАЛ УСПІШНО ЗАПИСАНО: {home_team} vs {away_team} ({home_odds or '—'} | {draw_odds or '—'} | {away_odds or '—'})")
+    except Exception as e:
+        print(f"⚠️ Помилка запису в Supabase: {e}")
 
 if __name__ == "__main__":
     main()
