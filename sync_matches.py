@@ -104,131 +104,39 @@
 # if __name__ == "__main__":
 #     main()
 
+
 import os
 import requests
-from supabase import create_client, Client
 
-# Налаштування Supabase
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip()
-SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-
-# Налаштування API-Football
 API_SPORTS_KEY = os.environ.get("API_SPORTS_KEY", "").strip()
 HEADERS = {
     "x-rapidapi-host": "v3.football.api-sports.io",
     "x-rapidapi-key": API_SPORTS_KEY
 }
 
-def fetch_cl_fixtures_multiseason():
-    all_fixtures = []
-    # Перевіряємо обидва можливі сезони для поточного фіналу 2026 року
-    for season in ["2025", "2026"]:
-        print(f"📡 Запит матчів ЛЧ за сезон {season}...")
-        url = f"https://v3.football.api-sports.io/fixtures?league=2&season={season}"
-        try:
-            response = requests.get(url, headers=HEADERS).json()
-            fixtures = response.get("response", [])
-            print(f"   Отримано {len(fixtures)} матчів.")
-            all_fixtures.extend(fixtures)
-        except Exception as e:
-            print(f"⚠️ Помилка запиту сезону {season}: {e}")
-    return all_fixtures
-
-def fetch_odds_for_fixture(fixture_id):
-    url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}"
+def scout_league(search_query):
+    print(f"\n🔎 Пошук за запитом '{search_query}'...")
+    url = f"https://v3.football.api-sports.io/leagues?search={search_query}"
     try:
         response = requests.get(url, headers=HEADERS).json()
-        res_data = response.get("response", [])
+        leagues = response.get("response", [])
+        print(f"Знайдено турнірів: {len(leagues)}")
         
-        if not res_data:
-            return None, None, None
-        
-        bookmakers = res_data[0].get("bookmakers", [])
-        if not bookmakers:
-            return None, None, None
-            
-        bets = bookmakers[0].get("bets", [])
-        for bet in bets:
-            if bet.get("id") == 1: # Маркет 1X2 (Match Winner)
-                values = bet.get("values", [])
-                home_odds = next((float(v["odds"]) for v in values if v["value"] == "Home"), None)
-                draw_odds = next((float(v["odds"]) for v in values if v["value"] == "Draw"), None)
-                away_odds = next((float(v["odds"]) for v in values if v["value"] == "Away"), None)
-                return home_odds, draw_odds, away_odds
+        for item in leagues:
+            league = item.get("league", {})
+            country = item.get("country", {}).get("name", "")
+            print(f"🏆 ID: {league.get('id')} | Назва: {league.get('name')} | Тип: {league.get('type')} | Країна: {country}")
     except Exception as e:
-        print(f"⚠️ Не вдалося отримати коефіцієнти для {fixture_id}: {e}")
-    return None, None, None
+        print(f"⚠️ Помилка під час пошуку '{search_query}': {e}")
 
 def main():
-    print("🔄 Запуск глобальної синхронізації фіналу ЛЧ 2026...")
-    fixtures = fetch_cl_fixtures_multiseason()
-
-    if not fixtures:
-        print("❌ Жодного матчу в ЛЧ (league=2) не знайдено. Спробуємо зробити запит суто на поточний тиждень...")
-        # Резервний варіант: беремо матчі ліги без прив'язки до сезону (API іноді це дозволяє для Live/Upcoming)
-        url_fallback = "https://v3.football.api-sports.io/fixtures?league=2&next=10"
-        fixtures = requests.get(url_fallback, headers=HEADERS).json().get("response", [])
-        print(f"   Резервний запит найближчих матчів повернув: {len(fixtures)} ігор.")
-
-    # Відсікаємо дублікати, якщо вони прилетіли з різних сезонів
-    seen_ids = set()
-    unique_fixtures = []
-    for f in fixtures:
-        f_id = f.get("fixture", {}).get("id")
-        if f_id not in seen_ids:
-            seen_ids.add(f_id)
-            unique_fixtures.add(f) if isinstance(unique_fixtures, list) else unique_fixtures.append(f)
-
-    # Якщо це фінальна стадія, нам потрібні найсвіжіші ігри (вони в кінці списку, тому розгортаємо)
-    recent_fixtures = list(reversed(unique_fixtures))
-
-    # Записуємо топ-10 актуальних матчів (включаючи фінал)
-    for item in recent_fixtures[:10]:
-        fixture = item.get("fixture", {})
-        teams = item.get("teams", {})
-        goals = item.get("goals", {})
-        
-        fixture_id = fixture.get("id")
-        home_team = teams.get("home", {}).get("name")
-        away_team = teams.get("away", {}).get("name")
-        start_time = fixture.get("date")
-        
-        api_status = fixture.get("status", {}).get("short")
-        db_status = "scheduled"
-        if api_status in ["FT", "AET", "PEN"]:
-            db_status = "finished"
-
-        home_score = goals.get("home")
-        away_score = goals.get("away")
-
-        # Тягнемо коефіцієнти букмереів
-        print(f"🔍 Отримуємо лінії на матч: {home_team} vs {away_team}...")
-        home_odds, draw_odds, away_odds = fetch_odds_for_fixture(fixture_id)
-
-        match_data = {
-            "id": fixture_id,
-            "home_team": home_team,
-            "away_team": away_team,
-            "start_time": start_time,
-            "status": db_status
-        }
-
-        if home_score is not None: match_data["home_score"] = home_score
-        if away_score is not None: match_data["away_score"] = away_score
-        
-        if home_odds: match_data["home_odds"] = home_odds
-        if draw_odds: match_data["draw_odds"] = draw_odds
-        if away_odds: match_data["away_odds"] = away_odds
-
-        try:
-            supabase.table("matches").upsert(match_data).execute()
-            odds_str = f"({home_odds} | {draw_odds} | {away_odds})" if home_odds else "(коефіцієнти відсутні)"
-            print(f"🚀 Записано: {home_team} vs {away_team} -> {odds_str}")
-        except Exception as e:
-            print(f"⚠️ Помилка Supabase для матчу {fixture_id}: {e}")
-
-    print("✅ Актуальну синхронізацію ЛЧ успішно завершено!")
+    print("🚀 Запуск глобальної розвідки ідентифікаторів в API-Sports...")
+    
+    # 1. Шукаємо актуальний ID для Ліги Чемпіонів
+    scout_league("Champions League")
+    
+    # 2. Шукаємо всі можливі варіації Чемпіонату Світу
+    scout_league("World Cup")
 
 if __name__ == "__main__":
     main()
