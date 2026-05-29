@@ -122,8 +122,8 @@ HEADERS = {
 }
 
 def fetch_world_cup_matches():
-    # ТЕПЕР СТАВИМО ТОЧНІ ПАРАМЕТРИ: ліга 32, сезон 2024
-    url = "https://v3.football.api-sports.io/fixtures?league=32&season=2024"
+    # Міняємо на ЛЧ: league=2 (Champions League), season=2025
+    url = "https://v3.football.api-sports.io/fixtures?league=2&season=2025"
     response = requests.get(url, headers=HEADERS).json()
     return response.get("response", [])
 
@@ -141,7 +141,7 @@ def fetch_odds_for_fixture(fixture_id):
         
     bets = bookmakers[0].get("bets", [])
     for bet in bets:
-        if bet.get("id") == 1: # Маркет 1X2 (Match Winner)
+        if bet.get("id") == 1: # Маркет 1X2
             values = bet.get("values", [])
             home_odds = next((float(v["odds"]) for v in values if v["value"] == "Home"), None)
             draw_odds = next((float(v["odds"]) for v in values if v["value"] == "Draw"), None)
@@ -151,7 +151,7 @@ def fetch_odds_for_fixture(fixture_id):
     return None, None, None
 
 def main():
-    print("🔄 Запуск синхронізації матчів (Ліга 32, Сезон 2024)...")
+    print("🔄 Запуск синхронізації матчів (Ліга Чемпіонів ЛЧ, Сезон 2025)...")
     fixtures = fetch_world_cup_matches()
     print(f"Знайдено {len(fixtures)} матчів у базі провайдера.")
 
@@ -159,7 +159,7 @@ def main():
         print("❌ Матчів не знайдено. Перевір параметри запиту.")
         return
 
-    # Беремо перші 50 матчів для завантаження в Supabase
+    # Завантажуємо матчі в Supabase (беремо перші 50, куди точно потраплять фінальні ігри)
     for item in fixtures[:50]:
         fixture = item.get("fixture", {})
         teams = item.get("teams", {})
@@ -198,7 +198,7 @@ def main():
 
         try:
             supabase.table("matches").upsert(match_data).execute()
-            print(f"⚽️ Матч додано/оновлено: {home_team} vs {away_team}")
+            print(f"🏆 ЛЧ Матч додано/оновлено: {home_team} vs {away_team}")
         except Exception as e:
             print(f"⚠️ Помилка запису матчу {fixture_id}: {e}")
 
