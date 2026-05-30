@@ -104,7 +104,6 @@
 # if __name__ == "__main__":
 #     main()
 
-
 import os
 import requests
 from supabase import create_client, Client
@@ -114,41 +113,41 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip()
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-# Твій особистий ключ від The Odds API (встав його сюди або в Secrets на GitHub)
+# Ключ від The Odds API
 THE_ODDS_API_KEY = "0e12fe136a3131cc54933f95157b3b69"
 
-def fetch_real_odds_from_odds_api():
-    # Запитуємо коефіцієнти на футбол для Ліги Чемпіонів УЄФА
-    url = f"https://api.the-odds-api.com/v4/sports/soccer_uefa_champions_league/odds/?apiKey={THE_ODDS_API_KEY}&regions=eu&markets=h2h"
+def fetch_real_odds_from_any_soccer():
+    # Запитуємо загальний футбол (all soccer), щоб обійти помилку UNKNOWN_SPORT
+    url = f"https://api.the-odds-api.com/v4/sports/soccer/odds/?apiKey={THE_ODDS_API_KEY}&regions=eu&markets=h2h"
     
+    print("📡 Надсилаємо запит до глобальної бази футболу...")
     try:
         response = requests.get(url).json()
         
-        # Перевіряємо, чи не повернув сервер помилку ліміту чи ключа
         if "error" in response or not isinstance(response, list):
             print(f"⚠️ Помилка The Odds API: {response}")
             return None
             
+        print(f"📋 Отримано {len(response)} матчів з усього світу. Шукаємо фінал ЛЧ...")
+        
         for match in response:
-            # Шукаємо матч, де грає Арсенал або ПСЖ
             home_team = match.get("home_team", "")
             away_team = match.get("away_team", "")
             
+            # Шукаємо саме лондонський Арсенал або ПСЖ
             if "Arsenal" in home_team or "Arsenal" in away_team or "Paris" in home_team or "Paris" in away_team:
-                # Беремо першого доступного букмекера з лінії регіону EU
                 bookmakers = match.get("bookmakers", [])
                 if not bookmakers: continue
                 
                 market = bookmakers[0].get("markets", [{}])[0]
                 outcomes = market.get("outcomes", [])
                 
-                # Витягуємо реальні чисті цифри коефіцієнтів
                 home_odds = next((o["price"] for o in outcomes if o["name"] == home_team), None)
                 away_odds = next((o["price"] for o in outcomes if o["name"] == away_team), None)
                 draw_odds = next((o["price"] for o in outcomes if o["name"] in ["Draw", "draw"]), None)
                 
                 return {
-                    "id": match.get("id"), # Унікальний ID матчу від Odds API
+                    "id": match.get("id"),
                     "home_team": home_team,
                     "away_team": away_team,
                     "start_time": match.get("commence_time"),
@@ -157,22 +156,21 @@ def fetch_real_odds_from_odds_api():
                     "away_odds": away_odds
                 }
     except Exception as e:
-        print(f"⚠️ Помилка парсингу The Odds API: {e}")
+        print(f"⚠️ Помилка парсингу: {e}")
         
     return None
 
 def main():
-    print("🔄 Запуск синхронізації реальних коефіцієнтів на фінал ЛЧ...")
+    print("重新 Запуск синхронізації реальних коефіцієнтів (Універсальний Soccer фільтр)...")
     
-    match_data = fetch_real_odds_from_odds_api()
+    match_data = fetch_real_odds_from_any_soccer()
     
     if not match_data:
-        print("❌ Не вдалося знайти матч Арсенал/ПСЖ у поточній лінії букмекерів.")
+        print("❌ Не вдалося знайти матч Арсенал/ПСЖ у загальному списку. Можливо, на безкоштовному плані діє обмеження ліг.")
         return
         
-    # Формуємо структуру для нашої бази Supabase
     db_match = {
-        "id": hash(match_data["id"]) % 1000000, # Перетворюємо стрінговий ID в інт для бази
+        "id": hash(match_data["id"]) % 1000000,
         "home_team": match_data["home_team"],
         "away_team": match_data["away_team"],
         "start_time": match_data["start_time"],
@@ -184,9 +182,9 @@ def main():
     
     try:
         supabase.table("matches").upsert(db_match).execute()
-        print(f"🔥 УСПІШНО ЗАПИСАНО РЕАЛЬНИЙ ФІНАЛ З БУКМЕКЕРІВ!")
+        print(f"🔥 РЕАЛЬНИЙ ФІНАЛ З КОЕФІЦІЄНТАМИ ЗАПИСАНО В БАЗУ!")
         print(f"🏆 {db_match['home_team']} vs {db_match['away_team']}")
-        print(f"📊 Кефи: {db_match['home_odds']} | {db_match['draw_odds']} | {db_match['away_odds']}")
+        print(f"📊 Справжні коефіцієнти: {db_match['home_odds']} | {db_match['draw_odds']} | {db_match['away_odds']}")
     except Exception as e:
         print(f"⚠️ Помилка запису в Supabase: {e}")
 
