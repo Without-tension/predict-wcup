@@ -104,31 +104,39 @@
 # if __name__ == "__main__":
 #     main()
 
-
 import os
 import requests
 from supabase import create_client, Client
 
+# Налаштування Supabase
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip()
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
+# Налаштування API-Football (API-Sports)
 API_SPORTS_KEY = os.environ.get("API_SPORTS_KEY", "").strip()
 HEADERS = {
     "x-rapidapi-host": "v3.football.api-sports.io",
     "x-rapidapi-key": API_SPORTS_KEY
 }
 
+def fetch_world_cup_fixtures():
+    # Згідно з офіційним гайдом: league=1 (World Cup), season=2026
+    url = "https://v3.football.api-sports.io/fixtures?league=1&season=2026"
+    response = requests.get(url, headers=HEADERS).json()
+    return response.get("response", [])
+
 def fetch_odds_for_fixture(fixture_id):
     url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}"
     try:
         response = requests.get(url, headers=HEADERS).json()
         res_data = response.get("response", [])
-        if not res_data or not res_data[0].get("bookmakers"): return None, None, None
+        if not res_data or not res_data[0].get("bookmakers"):
+            return None, None, None
         
         bets = res_data[0]["bookmakers"][0].get("bets", [])
         for bet in bets:
-            if bet.get("id") == 1: # 1X2 market
+            if bet.get("id") == 1: # Маркет 1X2 (Результат матчу)
                 values = bet.get("values", [])
                 home_odds = next((float(v["odds"]) for v in values if v["value"] == "Home"), None)
                 draw_odds = next((float(v["odds"]) for v in values if v["value"] == "Draw"), None)
@@ -139,60 +147,60 @@ def fetch_odds_for_fixture(fixture_id):
     return None, None, None
 
 def main():
-    print("🔄 Сканування матчів на 30 травня 2026 для пошуку гри з коефіцієнтами...")
-    url = "https://v3.football.api-sports.io/fixtures?date=2026-05-30"
-    fixtures = requests.get(url, headers=HEADERS).json().get("response", [])
-    
-    print(f"Отримано {len(fixtures)} матчів зі світу. Шукаємо матч із активними ставками...")
-    
-    matches_inserted = 0
-    
-    for item in fixtures:
-        # Перевіримо максимум 15 матчів, щоб не спалити денний ліміт запитів до API
-        if matches_inserted >= 5: break 
-        
+    print("🔄 Запуск офіційної синхронізації матчів ЧС-2026 (League 1, Season 2026)...")
+    fixtures = fetch_world_cup_fixtures()
+    print(f"Знайдено {len(fixtures)} матчів Чемпіонату Світу в базі провайдера.")
+
+    if not fixtures:
+        print("❌ Не вдалося отримати матчі ЧС-2026. Перевірте ліміти запитів або підписку.")
+        return
+
+    # Завантажуємо перші 50 матчів групового етапу ЧС у Supabase
+    for item in fixtures[:50]:
         fixture = item.get("fixture", {})
         teams = item.get("teams", {})
+        goals = item.get("goals", {})
+        
         fixture_id = fixture.get("id")
         home_team = teams.get("home", {}).get("name")
         away_team = teams.get("away", {}).get("name")
+        start_time = fixture.get("date")
         
-        # Перевіряємо, чи є коефіцієнти на цей матч
-        home_odds, draw_odds, away_odds = fetch_odds_for_fixture(fixture_id)
-        
-        if home_odds:
-            match_data = {
-                "id": fixture_id,
-                "home_team": home_team,
-                "away_team": away_team,
-                "start_time": fixture.get("date"),
-                "status": "scheduled",
-                "home_odds": home_odds,
-                "draw_odds": draw_odds,
-                "away_odds": away_odds
-            }
-            try:
-                supabase.table("matches").upsert(match_data).execute()
-                print(f"🔥 ЗНАЙДЕНО І ЗАПИСАНО: {home_team} vs {away_team} -> ({home_odds} | {draw_odds} | {away_odds})")
-                matches_inserted += 1
-            except Exception as e:
-                print(f"Помилка запису: {e}")
+        # Визначаємо статус
+        api_status = fixture.get("status", {}).get("short")
+        db_status = "scheduled"
+        if api_status in ["FT", "AET", "PEN"]:
+            db_status = "finished"
 
-    if matches_inserted == 0:
-        print("❓ На безкоштовному тарифі на завтра взагалі не завантажено ліній. Записуємо ручний тестовий фінал!")
-        # Якщо API повністю "голе", запишемо твій реальний фінал руками, щоб сайт ожив!
-        test_final = {
-            "id": 999999,
-            "home_team": "Paris Saint Germain",
-            "away_team": "Arsenal",
-            "start_time": "2026-05-30T19:00:00+00:00",
-            "status": "scheduled",
-            "home_odds": 2.45,
-            "draw_odds": 3.40,
-            "away_odds": 2.85
+        home_score = goals.get("home")
+        away_score = goals.get("away")
+
+        # Смикаємо реальні букмекерські кефи від API
+        home_odds, draw_odds, away_odds = fetch_odds_for_fixture(fixture_id)
+
+        match_data = {
+            "id": fixture_id,
+            "home_team": home_team,
+            "away_team": away_team,
+            "start_time": start_time,
+            "status": db_status
         }
-        supabase.table("matches").upsert(test_final).execute()
-        print("🏆 Записано залізобетонний тестовий фінал: PSG vs Arsenal (2.45 | 3.40 | 2.85)")
+
+        if home_score is not None: match_data["home_score"] = home_score
+        if away_score is not None: match_data["away_score"] = away_score
+        
+        if home_odds: match_data["home_odds"] = home_odds
+        if draw_odds: match_data["draw_odds"] = draw_odds
+        if away_odds: match_data["away_odds"] = away_odds
+
+        try:
+            supabase.table("matches").upsert(match_data).execute()
+            odds_log = f"({home_odds} | {draw_odds} | {away_odds})" if home_odds else "(кефи ще не виставлені букмекерами)"
+            print(f"⚽️ Додано ЧС матч: {home_team} vs {away_team} -> {odds_log}")
+        except Exception as e:
+            print(f"⚠️ Помилка запису матчу {fixture_id}: {e}")
+
+    print("✅ Стрічку Чемпіонату Світу 2026 успішно синхронізовано!")
 
 if __name__ == "__main__":
     main()
