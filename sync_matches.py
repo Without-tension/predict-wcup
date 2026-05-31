@@ -7,106 +7,127 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip()
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-WIDGET_ACCESS_KEY = "wk_23a08ac1919398912664ec5437ac4fe4"
+# Твій робочий стандартний API ключ з image_a6a020.png
+THE_ODDS_API_KEY = "0e12fe136a3131cc54933f95157b3b69"
+SPORT_KEY = "soccer_fifa_world_cup"
 
-def fetch_games_from_widget(sport_key):
-    url = f"https://widget.the-odds-api.com/v1/sports/{sport_key}/events/"
+def sync_upcoming_matches():
+    """Стягує майбутні матчі ЧС-2026 та актуальні коефіцієнти Pinnacle"""
+    url = f"https://api.the-odds-api.com/v4/sports/{SPORT_KEY}/odds/"
     params = {
-        "accessKey": WIDGET_ACCESS_KEY,
-        "bookmakerKeys": "pinnacle",
-        "oddsFormat": "decimal",
-        "markets": "h2h"
+        "apiKey": THE_ODDS_API_KEY,
+        "regions": "eu",
+        "markets": "h2h",
+        "bookmakers": "pinnacle",
+        "oddsFormat": "decimal"
     }
     
-    # Маскуємося під звичайний браузер, щоб сервер віджета не блокував скрипт
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/plain, */*",
-        "Origin": "https://widget.the-odds-api.com",
-        "Referer": "https://widget.the-odds-api.com/"
-    }
-    
-    print(f"📡 Запит даних віджета для ліги: {sport_key}...")
+    print("📡 Отримуємо розклад та коефіцієнти ЧС-2026 з The Odds API...")
     try:
-        response = requests.get(url, params=params, headers=headers)
-        
-        # Якщо сервер повернув помилку доступу
-        if response.status_code != 200:
-            print(f"⚠️ Сервер повернув статус {response.status_code}. Доступ обмежено.")
-            return []
+        response = requests.get(url, params=params).json()
+        if "error" in response or not isinstance(response, list):
+            print(f"⚠️ Помилка отримання коефіцієнтів: {response}")
+            return
             
-        data = response.json()
+        print(f"📋 Знайдено {len(response)} матчів ЧС-2026 у лінії. Синхронізуємо...")
         
-        # Перевіряємо різні варіанти структури відповіді віджета
-        if isinstance(data, dict):
-            if "data" in data: return data["data"]
-            if "events" in data: return data["events"]
-            return [data] if "home_team" in data else []
-        elif isinstance(data, list):
-            return data
+        for match in response:
+            home_team = match.get("home_team")
+            away_team = match.get("away_team")
+            start_time = match.get("commence_time")
+            match_id = match.get("id")
             
-        return []
-    except Exception as e:
-        print(f"⚠️ Помилка отримання даних: {e}")
-        return []
-
-def sync_league_data(sport_key):
-    games = fetch_games_from_widget(sport_key)
-    if not games:
-        print(f"❌ Не вдалося розпарсити ігри для {sport_key}")
-        return
-
-    print(f"📋 Знайдено матчів: {len(games)}. Записуємо в базу...")
-    
-    for game in games:
-        home_team = game.get("home_team") or game.get("homeTeam")
-        away_team = game.get("away_team") or game.get("awayTeam")
-        start_time = game.get("commence_time") or game.get("commenceTime")
-        game_id = game.get("id")
-        
-        if not home_team or not away_team:
-            continue
-
-        db_id = hash(str(game_id or home_team)) % 1000000
-
-        home_odds, draw_odds, away_odds = None, None, None
-        bookmakers = game.get("bookmakers", [])
-        
-        if bookmakers:
-            # Віджет може повертати або список маркетів, або відразу результати
-            markets = bookmakers[0].get("markets", [])
-            if markets:
-                outcomes = markets[0].get("outcomes", [])
-                for outcome in outcomes:
-                    name = outcome.get("name", "")
-                    price = outcome.get("price") or outcome.get("odds")
-                    if price:
+            # Генеруємо числовий ID на основі стрінги від API для нашої бази Supabase
+            db_id = hash(match_id) % 1000000
+            
+            home_odds, draw_odds, away_odds = None, None, None
+            bookmakers = match.get("bookmakers", [])
+            
+            if bookmakers:
+                markets = bookmakers[0].get("markets", [])
+                if markets:
+                    outcomes = markets[0].get("outcomes", [])
+                    for outcome in outcomes:
+                        name = outcome.get("name", "")
+                        price = outcome.get("price")
                         if name == home_team: home_odds = float(price)
                         elif name == away_team: away_odds = float(price)
-                        elif name in ["Draw", "draw", "X", "Нічия"]: draw_odds = float(price)
+                        elif name in ["Draw", "draw", "X"]: draw_odds = float(price)
 
-        match_data = {
-            "id": db_id,
-            "home_team": home_team,
-            "away_team": away_team,
-            "start_time": start_time,
-            "status": "scheduled",
-            "home_odds": home_odds,
-            "draw_odds": draw_odds,
-            "away_odds": away_odds
-        }
+            match_data = {
+                "id": db_id,
+                "home_team": home_team,
+                "away_team": away_team,
+                "start_time": start_time,
+                "status": "scheduled",
+                "home_odds": home_odds,
+                "draw_odds": draw_odds,
+                "away_odds": away_odds
+            }
 
-        try:
-            supabase.table("matches").upsert(match_data).execute()
-            print(f"✅ Успішно додано: {home_team} vs {away_team} -> ({home_odds or '—'} | {draw_odds or '—'} | {away_odds or '—'})")
-        except Exception as e:
-            print(f"⚠️ Помилка Supabase: {e}")
+            try:
+                supabase.table("matches").upsert(match_data).execute()
+                print(f"⚽ Записано: {home_team} vs {away_team} -> ({home_odds} | {draw_odds} | {away_odds})")
+            except Exception as e:
+                print(f"⚠️ Помилка Supabase при запису матчу: {e}")
+                
+    except Exception as e:
+        print(f"⚠️ Помилка запиту ліній: {e}")
+
+def sync_completed_results():
+    """Стягує завершені результати матчів ЧС-2026 для закриття прогнозів"""
+    url = f"https://api.the-odds-api.com/v4/sports/{SPORT_KEY}/scores/"
+    params = {
+        "apiKey": THE_ODDS_API_KEY,
+        "daysFrom": 3 # Перевіряє матчі за останні 3 дні
+    }
+    
+    print("\n📡 Перевіряємо наявність завершених матчів ЧС-2026 для оновлення рахунку...")
+    try:
+        response = requests.get(url, params=params).json()
+        if "error" in response or not isinstance(response, list):
+            print(f"⚠️ Помилка отримання результатів: {response}")
+            return
+            
+        for match in response:
+            if match.get("completed", False):
+                home_team = match.get("home_team")
+                away_team = match.get("away_team")
+                match_id = match.get("id")
+                db_id = hash(match_id) % 1000000
+                
+                scores = match.get("scores", [])
+                home_score = None
+                away_score = None
+                
+                if scores:
+                    home_score = next((int(s["score"]) for s in scores if s["name"] == home_team), None)
+                    away_score = next((int(s["score"]) for s in scores if s["name"] == away_team), None)
+                
+                if home_score is not None and away_score is not None:
+                    result_data = {
+                        "id": db_id,
+                        "status": "finished",
+                        "home_score": home_score,
+                        "away_score": away_score
+                    }
+                    try:
+                        supabase.table("matches").update(result_data).eq("id", db_id).execute()
+                        print(f"🏁 МАТЧ ЗАВЕРШЕНО: {home_team} {home_score}:{away_score} {away_team} -> Результат внесено!")
+                    except Exception as e:
+                        print(f"⚠️ Помилка оновлення рахунку в Supabase: {e}")
+    except Exception as e:
+        print(f"⚠️ Помилка запису результатів: {e}")
 
 def main():
-    print("🚀 СТАРТ ЗАХИЩЕНОЇ СИНХРОНІЗАЦІЇ (ЛЧ + ЧС)...")
-    sync_league_data("soccer_uefa_champs_league")
-    sync_league_data("soccer_fifa_world_cup")
-    print("🎉 Синхронізацію завершено!")
+    print("🏆 ЗАПУСК ПОВНОЇ СИНХРОНІЗАЦІЇ ЧЕМПІОНАТУ СВІТУ 2026 🏆")
+    # 1. Завантажуємо нові матчі та оновлюємо коефіцієнти букмекерів
+    sync_upcoming_matches()
+    
+    # 2. Перевіряємо і проставляємо рахунок для ігор, які вже завершилися
+    sync_completed_results()
+    
+    print("\n🎉 Синхронізацію ЧС-2026 повністю виконано!")
 
 if __name__ == "__main__":
     main()
