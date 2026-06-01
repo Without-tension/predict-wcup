@@ -1,7 +1,21 @@
 import React from 'react';
 
-// База даних прапорів для ВСІХ країн-учасниць ЧС-2026
+// Повна база даних прапорів, включаючи всі проблемні країни з The Odds API
 const worldCupFlags = {
+  // Твої 11 країн з точними назвами з API
+  "Bosnia & Herzegovina": "ba",
+  "Haiti": "ht",
+  "Turkey": "tr",
+  "Curaçao": "cw",
+  "Ivory Coast": "ci",
+  "Cape Verde": "cv",
+  "Norway": "no",
+  "Iraq": "iq",
+  "Jordan": "jo",
+  "DR Congo": "cd",
+  "Uzbekistan": "uz",
+
+  // Решта країн ЧС-2026 та кваліфікації
   "Argentina": "ar", "Algeria": "dz", "Australia": "au", "Austria": "at",
   "Belgium": "be", "Brazil": "br", "Cameroon": "cm", "Canada": "ca",
   "Chile": "cl", "Colombia": "co", "Costa Rica": "cr", "Croatia": "hr",
@@ -46,7 +60,6 @@ const MatchCard = ({ match, userPrediction, onMakePrediction }) => {
 
   return (
     <div className="match-card">
-      {/* Вбудовані стилі, щоб не плодити файли */}
       <style>{`
         .match-card {
           max-width: 600px;
@@ -139,29 +152,29 @@ const MatchCard = ({ match, userPrediction, onMakePrediction }) => {
       <div className="match-main-row">
         <div className="team-block home">
           {renderFlag(home_team)}
-          <span>{home_team}</span>
+          <span className="truncate" title={home_team}>{home_team}</span>
         </div>
 
         <div className="odds-container">
           <button 
-            className={`odds-btn ${userPrediction === 'Home' ? 'selected' : ''}`}
-            onClick={() => onMakePrediction(id, 'Home')}
+            className={`odds-btn ${userPrediction === '1' ? 'selected' : ''}`}
+            onClick={() => onMakePrediction(id, '1')}
           >
             <span className="odds-label">П1</span>
             <span className="odds-num">{home_odds?.toFixed(2) || '—'}</span>
           </button>
 
           <button 
-            className={`odds-btn ${userPrediction === 'Draw' ? 'selected' : ''}`}
-            onClick={() => onMakePrediction(id, 'Draw')}
+            className={`odds-btn ${userPrediction === 'X' ? 'selected' : ''}`}
+            onClick={() => onMakePrediction(id, 'X')}
           >
             <span className="odds-label">X</span>
             <span className="odds-num">{draw_odds?.toFixed(2) || '—'}</span>
           </button>
 
           <button 
-            className={`odds-btn ${userPrediction === 'Away' ? 'selected' : ''}`}
-            onClick={() => onMakePrediction(id, 'Away')}
+            className={`odds-btn ${userPrediction === '2' ? 'selected' : ''}`}
+            onClick={() => onMakePrediction(id, '2')}
           >
             <span className="odds-label">П2</span>
             <span className="odds-num">{away_odds?.toFixed(2) || '—'}</span>
@@ -169,7 +182,7 @@ const MatchCard = ({ match, userPrediction, onMakePrediction }) => {
         </div>
 
         <div className="team-block away">
-          <span>{away_team}</span>
+          <span className="truncate" title={away_team}>{away_team}</span>
           {renderFlag(away_team)}
         </div>
       </div>
