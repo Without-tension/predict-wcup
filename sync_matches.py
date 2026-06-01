@@ -1,5 +1,6 @@
 import os
 import requests
+import hashlib
 from supabase import create_client, Client
 
 # Налаштування Supabase
@@ -7,13 +8,17 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip()
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-# Твій робочий стандартний API ключ з image_a6a020.png
 THE_ODDS_API_KEY = "0e12fe136a3131cc54933f95157b3b69"
-SPORT_KEY = "soccer_fifa_world_cup"
 
-def sync_upcoming_matches():
-    """Стягує майбутні матчі ЧС-2026 та актуальні коефіцієнти Pinnacle"""
-    url = f"https://api.the-odds-api.com/v4/sports/{SPORT_KEY}/odds/"
+# Списоку ліг для синхронізації: ЧС-2026 + Бразилія Серія Б
+SPORTS_KEYS = ["soccer_fifa_world_cup", "soccer_brazil_campeonato_seria_b"]
+
+def generate_stable_id(api_id_str):
+    """Генерує стабільний числовий ID на основі MD5, який не змінюється між запусками"""
+    return int(hashlib.md5(api_id_str.encode('utf-8')).hexdigest(), 16) % 1000000
+
+def sync_upcoming_matches(sport_key):
+    url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds/"
     params = {
         "apiKey": THE_ODDS_API_KEY,
         "regions": "eu",
@@ -22,14 +27,14 @@ def sync_upcoming_matches():
         "oddsFormat": "decimal"
     }
     
-    print("📡 Отримуємо розклад та коефіцієнти ЧС-2026 з The Odds API...")
+    print(f"📡 Отримуємо розклад та коефіцієнти для {sport_key}...")
     try:
         response = requests.get(url, params=params).json()
         if "error" in response or not isinstance(response, list):
-            print(f"⚠️ Помилка отримання коефіцієнтів: {response}")
+            print(f"⚠️ Помилка ліги {sport_key}: {response}")
             return
             
-        print(f"📋 Знайдено {len(response)} матчів ЧС-2026 у лінії. Синхронізуємо...")
+        print(f"📋 Знайдено {len(response)} матчів. Синхронізуємо...")
         
         for match in response:
             home_team = match.get("home_team")
@@ -37,8 +42,8 @@ def sync_upcoming_matches():
             start_time = match.get("commence_time")
             match_id = match.get("id")
             
-            # Генеруємо числовий ID на основі стрінги від API для нашої бази Supabase
-            db_id = hash(match_id) % 1000000
+            # Залізобетонний стабільний ID
+            db_id = generate_stable_id(match_id)
             
             home_odds, draw_odds, away_odds = None, None, None
             bookmakers = match.get("bookmakers", [])
@@ -65,28 +70,24 @@ def sync_upcoming_matches():
                 "away_odds": away_odds
             }
 
-            try:
-                supabase.table("matches").upsert(match_data).execute()
-                print(f"⚽ Записано: {home_team} vs {away_team} -> ({home_odds} | {draw_odds} | {away_odds})")
-            except Exception as e:
-                print(f"⚠️ Помилка Supabase при запису матчу: {e}")
+            # Надійний upsert: якщо ID вже є — перезапише коефіцієнти, а не створить дубль
+            supabase.table("matches").upsert(match_data).execute()
+            print(f"✅ Синхронізовано: {home_team} vs {away_team} -> ({home_odds} | {draw_odds} | {away_odds})")
                 
     except Exception as e:
-        print(f"⚠️ Помилка запиту ліній: {e}")
+        print(f"⚠️ Помилка запису ліній {sport_key}: {e}")
 
-def sync_completed_results():
-    """Стягує завершені результати матчів ЧС-2026 для закриття прогнозів"""
-    url = f"https://api.the-odds-api.com/v4/sports/{SPORT_KEY}/scores/"
+def sync_completed_results(sport_key):
+    url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/scores/"
     params = {
         "apiKey": THE_ODDS_API_KEY,
-        "daysFrom": 3 # Перевіряє матчі за останні 3 дні
+        "daysFrom": 3
     }
     
-    print("\n📡 Перевіряємо наявність завершених матчів ЧС-2026 для оновлення рахунку...")
+    print(f"\n📡 Перевірка результатів для {sport_key}...")
     try:
         response = requests.get(url, params=params).json()
         if "error" in response or not isinstance(response, list):
-            print(f"⚠️ Помилка отримання результатів: {response}")
             return
             
         for match in response:
@@ -94,40 +95,75 @@ def sync_completed_results():
                 home_team = match.get("home_team")
                 away_team = match.get("away_team")
                 match_id = match.get("id")
-                db_id = hash(match_id) % 1000000
+                db_id = generate_stable_id(match_id)
                 
                 scores = match.get("scores", [])
-                home_score = None
-                away_score = None
+                home_score, away_score = None, None
                 
                 if scores:
                     home_score = next((int(s["score"]) for s in scores if s["name"] == home_team), None)
                     away_score = next((int(s["score"]) for s in scores if s["name"] == away_team), None)
                 
                 if home_score is not None and away_score is not None:
-                    result_data = {
-                        "id": db_id,
+                    # Оновлюємо статус матчу в базі
+                    supabase.table("matches").update({
                         "status": "finished",
                         "home_score": home_score,
                         "away_score": away_score
-                    }
-                    try:
-                        supabase.table("matches").update(result_data).eq("id", db_id).execute()
-                        print(f"🏁 МАТЧ ЗАВЕРШЕНО: {home_team} {home_score}:{away_score} {away_team} -> Результат внесено!")
-                    except Exception as e:
-                        print(f"⚠️ Помилка оновлення рахунку в Supabase: {e}")
+                    }).eq("id", db_id).execute()
+                    print(f"🏁 Фініш: {home_team} {home_score}:{away_score} {away_team}")
+                    
+                    # АВТОМАТИЧНИЙ ПІДРАХУНОК БАЛІВ ДЛЯ ЛІДЕРБОРДУ
+                    calculate_user_points(db_id, home_score, away_score, home_odds, draw_odds, away_odds)
+                    
     except Exception as e:
-        print(f"⚠️ Помилка запису результатів: {e}")
+        print(f"⚠️ Помилка результатів {sport_key}: {e}")
+
+def calculate_user_points(match_id, real_home, real_away, home_odds, draw_odds, away_odds):
+    """
+    Сканує всі прогнози користувачів на цей матч, рахує бали та заносить у лідерборд.
+    Логіка: Вгаданий результат (1Х2) = 1 бал + додається коефіцієнт у статистику контори.
+    """
+    try:
+        # Тягнемо всі прогнози на цей матч із таблиці 'predictions'
+        predictions = supabase.table("predictions").select("*").eq("match_id", match_id).execute().data
+        
+        # Визначаємо реальний результат матчу (Home, Away, Draw)
+        if real_home > real_away: real_res = "Home"
+        elif real_away > real_home: real_res = "Away"
+        else: real_res = "Draw"
+        
+        for pred in predictions:
+            user_id = pred.get("user_id")
+            user_pick = pred.get("prediction") # Наприклад: 'Home', 'Away', 'Draw'
+            
+            if user_pick == real_res:
+                # Визначаємо, який саме коефіцієнт вгадав гравець
+                winning_odds = 0.0
+                if real_res == "Home": winning_odds = home_odds or 0.0
+                elif real_res == "Away": winning_odds = away_odds or 0.0
+                else: winning_odds = draw_odds or 0.0
+                
+                # Оновлюємо таблицю лідерів користувача (додаємо 1 вгаданий, +1 до балів, +кеф)
+                # Припускаємо, що у тебе таблиця лідерборду називається 'leaderboard' або 'profiles'
+                # Скрипт робить інкремент значень у базі
+                user_stats = supabase.table("profiles").select("*").eq("id", user_id).execute().data
+                if user_stats:
+                    current = user_stats[0]
+                    supabase.table("profiles").update({
+                        "won_predictions": (current.get("won_predictions") or 0) + 1,
+                        "points": (current.get("points") or 0) + 1,
+                        "total_odds": float(current.get("total_odds") or 0.0) + float(winning_odds)
+                    }).eq("id", user_id).execute()
+    except Exception as e:
+        print(f"⚠️ Помилка підрахунку балів лідерборду: {e}")
 
 def main():
-    print("🏆 ЗАПУСК ПОВНОЇ СИНХРОНІЗАЦІЇ ЧЕМПІОНАТУ СВІТУ 2026 🏆")
-    # 1. Завантажуємо нові матчі та оновлюємо коефіцієнти букмекерів
-    sync_upcoming_matches()
-    
-    # 2. Перевіряємо і проставляємо рахунок для ігор, які вже завершилися
-    sync_completed_results()
-    
-    print("\n🎉 Синхронізацію ЧС-2026 повністю виконано!")
+    print("🚀 СТАРТ АВТОНОМНОЇ СИНХРОНІЗАЦІЇ ЧС-2026 + БРАЗИЛІЯ Б 🚀")
+    for sport in SPORTS_KEYS:
+        sync_upcoming_matches(sport)
+        sync_completed_results(sport)
+    print("\n🎉 Усі процеси оновлено автоматично!")
 
 if __name__ == "__main__":
     main()
