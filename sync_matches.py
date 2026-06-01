@@ -11,7 +11,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 THE_ODDS_API_KEY = "0e12fe136a3131cc54933f95157b3b69"
 
 # Списоку ліг для синхронізації: ЧС-2026 + Бразилія Серія Б
-SPORTS_KEYS = ["soccer_fifa_world_cup", "soccer_brazil_campeonato_seria_b"]
+SPORTS_KEYS = ["soccer_fifa_world_cup", "soccer_brazil_serie_b"]
 
 def generate_stable_id(api_id_str):
     """Генерує стабільний числовий ID на основі MD5, який не змінюється між запусками"""
