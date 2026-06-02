@@ -137,27 +137,24 @@ def calculate_user_points(match_id, real_home, real_away):
         draw_odds = match.get("draw_odds") or 1.0
         away_odds = match.get("away_odds") or 1.0
 
-        # Визначаємо чистий підсумок гри за кодуванням вашої бази ('1', 'X', '2')
         if real_home > real_away: real_res = "1"
         elif real_away > real_home: real_res = "2"
         else: real_res = "X"
         
-        # Тягнемо всі прогнози людей на цей конкретний матч
+        # Тягнемо всі прогнози людей на цей матч
         predictions = supabase.table("predictions").select("*").eq("match_id", match_id).execute().data
         
         for pred in predictions:
             user_id = pred.get("user_id")
             user_choice = pred.get("user_choice")
             
-            # Якщо користувач вгадав результат
             if user_choice == real_res:
                 winning_odds = 0.0
                 if real_res == "1": winning_odds = home_odds
                 elif real_res == "2": winning_odds = away_odds
                 elif real_res == "X": winning_odds = draw_odds
 
-                # Оновлюємо лідерборд. Назви колонок взяті з твого App.jsx:
-                # total_predictions (Вгадано), total_points (Бали), total_odds (Коеф.)
+                # ВИПРАВЛЕНО: Запит йде в 'leaderboard' замість 'profiles' відповідно до твоєї бази
                 leader_entry = supabase.table("leaderboard").select("*").eq("user_id", user_id).execute().data
                 
                 if leader_entry:
