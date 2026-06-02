@@ -49,7 +49,7 @@ const MatchCard = ({ match, userPrediction, onMakePrediction }) => {
       const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((difference % (1000 * 60)) / 1000);
 
-      let formattedTime = '⏳ До початку: ';
+      let formattedTime = '⏳';
       if (days > 0) formattedTime += `${days}д `;
       formattedTime += `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
       
