@@ -181,7 +181,6 @@
 # if __name__ == "__main__":
 #     main()
 
-
 import os
 import requests
 import hashlib
@@ -196,16 +195,10 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 THE_ODDS_API_KEY = "0e12fe136a3131cc54933f95157b3b69"
 SPORTS_KEYS = ["soccer_fifa_world_cup", "soccer_brazil_serie_b"]
 
-# =====================================================================
-# ⚙️ АДМІНСЬКА ПАНЕЛЬ РУЧНОГО ВВЕДЕННЯ РАХУНКУ (ЯКЩО БЕЗКОШТОВНЕ API ЗАТРИМУЄ)
-# Якщо матч завершився, а API ще не дало рахунок — просто впиши назву ДОМАШНЬОЇ команди
-# та реальний рахунок сюди. Скрипт сам все закриє і порахує бали людям!
-# =====================================================================
+# Ручне введення на випадок затримок API
 MANUAL_RESULTS = {
-    "Ponte Preta": {"home_score": 1, "away_score": 0},  # Наприклад: якщо зіграли 1:0
-    # "Operario PR": {"home_score": 2, "away_score": 1}, # Сюди зможеш додавати інші матчі
+    "Ponte Preta": {"home_score": 1, "away_score": 0},
 }
-# =====================================================================
 
 def generate_stable_id(api_id_str):
     return int(hashlib.md5(api_id_str.encode('utf-8')).hexdigest(), 16) % 1000000
@@ -226,7 +219,6 @@ def sync_upcoming_matches(sport_key):
             home_team = match.get("home_team")
             away_team = match.get("away_team")
             start_time = match.get("commence_time")
-            sport_title = match.get("sport_title")
             db_id = generate_stable_id(match.get("id"))
             
             bookmakers = match.get("bookmakers", [])
@@ -246,16 +238,23 @@ def sync_upcoming_matches(sport_key):
             if existing_match and existing_match[0].get("status") == "finished":
                 continue
 
+            # ВИПРАВЛЕНО: Прибрали sport_title, бо цієї колонки немає в твоїй таблиці
             match_data = {
-                "id": db_id, "home_team": home_team, "away_team": away_team, "start_time": start_time,
-                "sport_title": sport_title, "status": "scheduled", "home_odds": home_odds, "draw_odds": draw_odds, "away_odds": away_odds
+                "id": db_id, 
+                "home_team": home_team, 
+                "away_team": away_team, 
+                "start_time": start_time,
+                "status": "scheduled", 
+                "home_odds": home_odds, 
+                "draw_odds": draw_odds, 
+                "away_odds": away_odds
             }
             supabase.table("matches").upsert(match_data).execute()
+        print(f"✅ Лінії для {sport_key} успішно оновлено.")
     except Exception as e:
         print(f"⚠️ Помилка ліній {sport_key}: {e}")
 
 def sync_completed_results(sport_key):
-    # 1. ПЕРЕВІРКА ЧЕРЕЗ АВТОМАТИЧНЕ API ПРОВАЙДЕРА
     url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/scores/"
     try:
         response = requests.get(url, params={"apiKey": THE_ODDS_API_KEY, "daysFrom": 3}).json()
@@ -273,7 +272,6 @@ def sync_completed_results(sport_key):
     except Exception as e:
         print(f"⚠️ Помилка авто-результатів: {e}")
 
-    # 2. АВТО-БЛОКУВАННЯ ЗА ЧАСОМ ТА РУЧНИЙ ФАЛБЕК
     try:
         now = datetime.now(timezone.utc)
         db_matches = supabase.table("matches").select("*").eq("status", "scheduled").execute().data
@@ -283,21 +281,16 @@ def sync_completed_results(sport_key):
             home_team = m["home_team"]
             db_id = m["id"]
 
-            # Перевіряємо, чи внесли ми цей матч в адмінську панель MANUAL_RESULTS вручную
             if home_team in MANUAL_RESULTS:
                 res = MANUAL_RESULTS[home_team]
-                update_match_and_points(db_id, res["home_score"], res["away_score"], "Адмін-панель (Ручний ввод)")
-            
-            # Якщо матч розпочався більше ніж 2.5 години тому, а рахунку досі немає в API
+                update_match_and_points(db_id, res["home_score"], res["away_score"], "Адмін-панель")
             elif now > (match_time + timedelta(hours=2, minutes=30)):
-                print(f"🕒 Матч {home_team} завершився за часом, але API мовчить. Чекаємо введення рахунку...")
+                print(f"🕒 Матч {home_team} завершився за часом. Чекаємо оновлення результату...")
     except Exception as e:
         print(f"⚠️ Помилка фалбеку за часом: {e}")
 
 def update_match_and_points(db_id, home_score, away_score, source):
-    """Оновлює рахунок матчу та нараховує бали"""
     try:
-        # Перевіряємо поточний статус, щоб не нараховувати бали двічі
         match_check = supabase.table("matches").select("status").eq("id", db_id).execute().data
         if match_check and match_check[0].get("status") == "finished":
             return
@@ -307,6 +300,8 @@ def update_match_and_points(db_id, home_score, away_score, source):
         }).eq("id", db_id).execute()
         
         print(f"🔥 ЗАКРИТО МАТЧ через {source}! Рахунок: {home_score}:{away_score}")
+        
+        # Безпечно викликаємо підрахунок балів
         calculate_user_points(db_id, home_score, away_score)
     except Exception as e:
         print(f"⚠️ Помилка оновлення матчу {db_id}: {e}")
@@ -322,8 +317,16 @@ def calculate_user_points(match_id, real_home, real_away):
         away_odds = match.get("away_odds") or 1.0
 
         real_res = "1" if real_home > real_away else ("2" if real_away > real_home else "X")
-        predictions = supabase.table("predictions").select("*").eq("match_id", match_id).execute().data
         
+        # Запит загорнутий у try-except, щоб помилка пермішеній таблиці predictions не ламала весь скрипт
+        try:
+            predictions = supabase.table("predictions").select("*").eq("match_id", match_id).execute().data
+        except Exception as perm_err:
+            print(f"⚠️ Тимчасовий пропуск лідерборду (немає доступу до predictions): {perm_err}")
+            return
+
+        if not predictions: return
+
         for pred in predictions:
             user_id = pred.get("user_id")
             user_choice = pred.get("user_choice")
@@ -339,12 +342,11 @@ def calculate_user_points(match_id, real_home, real_away):
                         "total_points": (current.get("total_points") or 0) + 1,
                         "total_odds": float(current.get("total_odds") or 0.0) + float(winning_odds)
                     }).eq("user_id", user_id).execute()
-                    print(f"🥇 Нараховано бали користувачу {user_id}")
     except Exception as e:
         print(f"⚠️ Помилка лідерборду: {e}")
 
 def main():
-    print("🏆 ЗАПУСК СИНХРОНІЗАЦІЇ КОЕФІЦІЄНТІВ ТА СКРИПТА РЕЗУЛЬТАТІВ ПЛАН Б 🏆")
+    print("🏆 ЗАПУСК БЕЗПЕЧНОЇ СИНХРОНІЗАЦІЇ ПЛАН Б 🏆")
     for sport in SPORTS_KEYS:
         sync_upcoming_matches(sport)
         sync_completed_results(sport)
