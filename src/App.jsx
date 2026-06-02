@@ -3,6 +3,7 @@ import { supabase } from './supabaseClient';
 import Auth from './Auth';
 import MatchCard from './MatchCard';
 import SkeletonCard from './SkeletonCard';
+import { motion, AnimatePresence } from 'framer-motion'; // Імпортуємо анімації
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -80,7 +81,7 @@ export default function App() {
     setLoadingUserPreds(false);
   };
 
-  // Фонове збереження прогнозу: без перезавантажень сторінки
+  // Фонове збереження: локальний стейт міняється миттєво, база пишеться на фоні
   const handlePredict = async (matchId, choice) => {
     const match = matches.find(m => m.id === matchId);
     if (!match || match.status === 'finished' || new Date() >= new Date(match.start_time)) {
@@ -88,7 +89,7 @@ export default function App() {
       return;
     }
 
-    // Миттєво міняємо локальний стейт для тригеру CSS-анімації зсуву
+    // МИТТЄВО міняємо вибір у React. Елемент почне повільно плисти вниз
     setPredictions(prev => ({ ...prev, [matchId]: choice }));
 
     try {
@@ -120,10 +121,19 @@ export default function App() {
 
   if (!session) return <Auth />;
 
-  // Сортуємо весь загальний масив матчів строго за часом початку (start_time)
-  const sortedMatches = [...matches].sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+  // 🔥 РОЗУМНЕ СОРТУВАННЯ ДЛЯ ПЛАВНОГО РУХУ:
+  // Спочатку йдуть ті, де прогнозу немає (сортовані за часом).
+  // Нижче йдуть ті, де прогноз уже є (теж сортовані за часом).
+  const displayMatches = [...matches].sort((a, b) => {
+    const hasA = !!predictions[a.id];
+    const hasB = !!predictions[b.id];
+    
+    if (hasA !== hasB) {
+      return hasA ? 1 : -1; // Непрогнозовані кидаємо вгору
+    }
+    return new Date(a.start_time) - new Date(b.start_time); // Рівні сортуємо по даті
+  });
 
-  // Рахуємо кількість уже зроблених прогнозів користувача
   const predictedCount = matches.filter(m => predictions[m.id]).length;
 
   return (
@@ -145,7 +155,7 @@ export default function App() {
 
       <main className="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* БЛОК МАТЧІВ З ЕФЕКТОМ ПЛАВНОГО ШТОВХАННЯ СУСІДНІХ КАРТОК */}
+        {/* БЛОК МАТЧІВ З ЕФЕКТОМ ПЛАВНОЇ ФІЗИЧНОЇ ПЕРЕСТАНОВКИ КАРТОК */}
         <div className="lg:col-span-2 space-y-6">
           {loading ? (
             <div className="space-y-1">
@@ -156,50 +166,42 @@ export default function App() {
               📌 Немає активних матчів.
             </div>
           ) : (
-            <div className="flex flex-col gap-1 transition-all duration-700 dynamic-match-container">
+            <div className="flex flex-col gap-1 overflow-hidden">
               
-              {/* Стилі для плавного переміщення елементів у флекс-контейнері */}
-              <style>{`
-                .dynamic-match-container {
-                  display: flex;
-                  flex-direction: column;
-                }
-                .animated-match-row {
-                  transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
-                  position: relative;
-                  z-index: 10;
-                }
-                /* Картки без ставки отримують пріоритет (order: 1) */
-                .state-unpredicted {
-                  order: 1;
-                }
-                /* Картки зі ставкою плавно їдуть донизу (order: 2) */
-                .state-predicted {
-                  order: 2;
-                  opacity: 0.75;
-                }
-              `}</style>
+              {/* Анімований контейнер Framer Motion */}
+              <AnimatePresence mode="popLayout">
+                {displayMatches.map((match, index) => {
+                  const hasPred = !!predictions[match.id];
+                  
+                  return (
+                    <motion.div
+                      key={match.id}
+                      layout // 🌟 Ця магічна властивість запускає плавне штовхання сусідніх блоків!
+                      transition={{
+                        type: "spring",
+                        stiffness: 160,
+                        damping: 22
+                      }}
+                      className={hasPred ? "opacity-75" : "opacity-100"}
+                    >
+                      {/* Якщо це перший матч, який уже має ставку, малюємо перед ним красиву тонку мітку розподілу */}
+                      {hasPred && index === matches.filter(m => !predictions[m.id]).length && (
+                        <motion.div layout className="pt-6 pb-2 border-t border-gray-900/60 mt-4">
+                          <h2 className="text-xs font-bold uppercase tracking-wider text-green-400 border-l-4 border-green-500 pl-3">
+                            ✅ Прогнози зроблено ({predictedCount})
+                          </h2>
+                        </motion.div>
+                      )}
 
-              {sortedMatches.map((match) => {
-                const hasPrediction = !!predictions[match.id];
-                return (
-                  <div 
-                    key={match.id} 
-                    className={`animated-match-row ${hasPrediction ? 'state-predicted' : 'state-unpredicted'}`}
-                  >
-                    <MatchCard match={match} userPrediction={predictions[match.id]} onMakePrediction={handlePredict} />
-                  </div>
-                );
-              })}
-
-              {/* ЛАКОНІЧНИЙ НИЖНІЙ ЗАГОЛОВОК ЗАМІСТЬ ВЕРХНЬОГО БЛОКУ */}
-              {predictedCount > 0 && (
-                <div className="order-2 pt-6 pb-2 border-t border-gray-900/60 mt-4">
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-green-400 border-l-4 border-green-500 pl-3">
-                    ✅ Прогнози зроблено ({predictedCount})
-                  </h2>
-                </div>
-              )}
+                      <MatchCard 
+                        match={match} 
+                        userPrediction={predictions[match.id]} 
+                        onMakePrediction={handlePredict} 
+                      />
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
 
             </div>
           )}
