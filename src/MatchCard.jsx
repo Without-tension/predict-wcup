@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion'; // 1. Імпортуємо motion
 
 const worldCupFlags = {
   "Bosnia & Herzegovina": "ba", "Haiti": "ht", "Turkey": "tr", "Curaçao": "cw",
@@ -66,12 +67,14 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
   };
 
   const isButtonDisabled = status === 'finished' || isLiveOrPast || isReadOnly;
-
-  // Якщо це режим перегляду ЧУЖОГО профілю і матч ще не почався — приховуємо ставку суперника, щоб не списували
   const shouldHidePrediction = isReadOnly && !isLiveOrPast && status !== 'finished';
 
   return (
-    <div className={`match-card ${isReadOnly ? 'readonly-mode' : ''}`}>
+    /* 2. Замінюємо звичайний div на motion.div та додаємо залізобетонні атрибути layout */
+    <motion.div 
+      layout="position" // Захищає внутрішні блоки та текст від деформації та сплющування під час руху
+      className={`match-card ${isReadOnly ? 'readonly-mode' : ''}`}
+    >
       <style>{`
         .match-card {
           max-width: 600px;
@@ -126,7 +129,6 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
         .odds-label { font-size: 10px; color: #94a3b8; margin-bottom: 2px; }
         .odds-num { font-size: 14px; font-weight: 700; color: #10b981; }
         
-        /* Ефекти Web3-анімації натискання кнопки */
         .odds-btn:not(:disabled):active {
           transform: scale(0.92);
         }
@@ -214,7 +216,7 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
           {renderFlag(away_team)}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
