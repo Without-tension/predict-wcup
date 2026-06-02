@@ -1,54 +1,71 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
-// Повна база даних прапорів, включаючи всі проблемні країни з The Odds API
+// Повна база даних прапорів
 const worldCupFlags = {
-  // Твої 11 країн з точними назвами з API
-  "Bosnia & Herzegovina": "ba",
-  "Haiti": "ht",
-  "Turkey": "tr",
-  "Curaçao": "cw",
-  "Ivory Coast": "ci",
-  "Cape Verde": "cv",
-  "Norway": "no",
-  "Iraq": "iq",
-  "Jordan": "jo",
-  "DR Congo": "cd",
-  "Uzbekistan": "uz",
-
-  // Решта країн ЧС-2026 та кваліфікації
-  "Argentina": "ar", "Algeria": "dz", "Australia": "au", "Austria": "at",
-  "Belgium": "be", "Brazil": "br", "Cameroon": "cm", "Canada": "ca",
-  "Chile": "cl", "Colombia": "co", "Costa Rica": "cr", "Croatia": "hr",
-  "Czech Republic": "cz", "Denmark": "dk", "Ecuador": "ec", "Egypt": "eg",
-  "England": "gb-eng", "France": "fr", "Germany": "de", "Ghana": "gh",
-  "Greece": "gr", "Iran": "ir", "Italy": "it", "Japan": "jp",
-  "Mexico": "mx", "Morocco": "ma", "Netherlands": "nl", "New Zealand": "nz",
-  "Nigeria": "ng", "Panama": "pa", "Paraguay": "py", "Peru": "pe",
-  "Poland": "pl", "Portugal": "pt", "Qatar": "qa", "Saudi Arabia": "sa",
-  "Scotland": "gb-sct", "Senegal": "sn", "Serbia": "rs", "South Africa": "za",
-  "South Korea": "kr", "Spain": "es", "Sweden": "se", "Switzerland": "ch",
-  "Tunisia": "tn", "Ukraine": "ua", "United States": "us", "Uruguay": "uy",
-  "Wales": "gb-wls", "USA": "us"
+  "Bosnia & Herzegovina": "ba", "Haiti": "ht", "Turkey": "tr", "Curaçao": "cw",
+  "Ivory Coast": "ci", "Cape Verde": "cv", "Norway": "no", "Iraq": "iq",
+  "Jordan": "jo", "DR Congo": "cd", "Uzbekistan": "uz", "Argentina": "ar", 
+  "Algeria": "dz", "Australia": "au", "Austria": "at", "Belgium": "be", 
+  "Brazil": "br", "Cameroon": "cm", "Canada": "ca", "Chile": "cl", 
+  "Colombia": "co", "Costa Rica": "cr", "Croatia": "hr", "Czech Republic": "cz", 
+  "Denmark": "dk", "Ecuador": "ec", "Egypt": "eg", "England": "gb-eng", 
+  "France": "fr", "Germany": "de", "Ghana": "gh", "Greece": "gr", 
+  "Iran": "ir", "Italy": "it", "Japan": "jp", "Mexico": "mx", 
+  "Morocco": "ma", "Netherlands": "nl", "New Zealand": "nz", "Nigeria": "ng", 
+  "Panama": "pa", "Paraguay": "py", "Peru": "pe", "Poland": "pl", 
+  "Portugal": "pt", "Qatar": "qa", "Saudi Arabia": "sa", "Scotland": "gb-sct", 
+  "Senegal": "sn", "Serbia": "rs", "South Africa": "za", "South Korea": "kr", 
+  "Spain": "es", "Sweden": "se", "Switzerland": "ch", "Tunisia": "tn", 
+  "Ukraine": "ua", "United States": "us", "Uruguay": "uy", "Wales": "gb-wls", "USA": "us"
 };
 
 const MatchCard = ({ match, userPrediction, onMakePrediction }) => {
-  const { id, home_team, away_team, start_time, home_odds, draw_odds, away_odds } = match;
+  const { id, home_team, away_team, start_time, home_odds, draw_odds, away_odds, status, home_score, away_score } = match;
 
-  // Форматування дати та часу (наприклад: "11 червня о 22:00")
-  const formatMatchDate = (isoString) => {
-    const date = new Date(isoString);
-    return date.toLocaleString('uk-UA', {
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).replace(',', ' о');
-  };
+  const [timeLeft, setTimeLeft] = useState('');
+  const [isLiveOrPast, setIsLiveOrPast] = useState(false);
 
-  // Функція рендеру прапора (Тільки для країн, клуби Серії Б ігноруються)
+  // Логіка живого зворотного відліку
+  useEffect(() => {
+    if (status === 'finished') {
+      setIsLiveOrPast(true);
+      return;
+    }
+
+    const calculateTime = () => {
+      const now = new Date().getTime();
+      const matchTime = new Date(start_time).getTime();
+      const difference = matchTime - now;
+
+      if (difference <= 0) {
+        setIsLiveOrPast(true);
+        setTimeLeft('🔒 Гра розпочалась (Ставки закриті)');
+        return;
+      }
+
+      // Розрахунок днів, годин, хвилин, секунд
+      const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+
+      let formattedTime = '⏳ До початку: ';
+      if (days > 0) formattedTime += `${days}д `;
+      formattedTime += `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      
+      setTimeLeft(formattedTime);
+      setIsLiveOrPast(false);
+    };
+
+    calculateTime(); // перший запуск
+    const timer = setInterval(calculateTime, 1000); // оновлення кожну секунду
+
+    return () => clearInterval(timer);
+  }, [start_time, status]);
+
   const renderFlag = (teamName) => {
     const code = worldCupFlags[teamName];
-    if (!code) return null; // Якщо це клуб, прапор не виводиться
+    if (!code) return null;
     return (
       <img 
         src={`https://flagcdn.com/w40/${code}.png`} 
@@ -57,6 +74,9 @@ const MatchCard = ({ match, userPrediction, onMakePrediction }) => {
       />
     );
   };
+
+  // Визначаємо залізне фінальне блокування кнопок
+  const isButtonDisabled = status === 'finished' || isLiveOrPast;
 
   return (
     <div className="match-card">
@@ -71,12 +91,25 @@ const MatchCard = ({ match, userPrediction, onMakePrediction }) => {
           box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
           font-family: system-ui, -apple-system, sans-serif;
         }
-        .match-date-time {
-          font-size: 13.5px;
-          font-weight: 600;
-          color: #94a3b8;
-          text-align: center;
+        .match-header-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
           margin-bottom: 10px;
+          font-size: 12px;
+          font-weight: 600;
+        }
+        .match-date-static {
+          color: #94a3b8;
+        }
+        .match-countdown {
+          color: #f6ad55; /* Помаранчевий колір для таймера */
+        }
+        .match-countdown.blocked {
+          color: #fc8181; /* Червоний, якщо заблоковано */
+        }
+        .match-countdown.finished {
+          color: #68d391; /* Зелений, якщо матч завершено з рахунком */
         }
         .match-main-row {
           display: flex;
@@ -140,13 +173,30 @@ const MatchCard = ({ match, userPrediction, onMakePrediction }) => {
           color: #000000 !important;
           font-weight: 800;
         }
-        .odds-btn:hover:not(.selected) {
+        .odds-btn:hover:not(:disabled):not(.selected) {
           background-color: #3a4a63;
+        }
+        .odds-btn:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
         }
       `}</style>
 
-      <div className="match-date-time">
-        {formatMatchDate(start_time)}
+      {/* Верхня плашка: Дата зліва + Динамічний таймер справа */}
+      <div className="match-header-row">
+        <div className="match-date-static">
+          {new Date(start_time).toLocaleString('uk-UA', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+        </div>
+        
+        {status === 'finished' ? (
+          <div className="match-countdown finished">
+            🏁 Завершено ({home_score}:{away_score})
+          </div>
+        ) : (
+          <div className={`match-countdown ${isLiveOrPast ? 'blocked' : ''}`}>
+            {timeLeft}
+          </div>
+        )}
       </div>
 
       <div className="match-main-row">
@@ -157,6 +207,7 @@ const MatchCard = ({ match, userPrediction, onMakePrediction }) => {
 
         <div className="odds-container">
           <button 
+            disabled={isButtonDisabled}
             className={`odds-btn ${userPrediction === '1' ? 'selected' : ''}`}
             onClick={() => onMakePrediction(id, '1')}
           >
@@ -165,6 +216,7 @@ const MatchCard = ({ match, userPrediction, onMakePrediction }) => {
           </button>
 
           <button 
+            disabled={isButtonDisabled}
             className={`odds-btn ${userPrediction === 'X' ? 'selected' : ''}`}
             onClick={() => onMakePrediction(id, 'X')}
           >
@@ -173,6 +225,7 @@ const MatchCard = ({ match, userPrediction, onMakePrediction }) => {
           </button>
 
           <button 
+            disabled={isButtonDisabled}
             className={`odds-btn ${userPrediction === '2' ? 'selected' : ''}`}
             onClick={() => onMakePrediction(id, '2')}
           >
