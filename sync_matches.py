@@ -181,6 +181,8 @@
 # if __name__ == "__main__":
 #     main()
 
+
+
 import os
 import requests
 import hashlib
@@ -194,6 +196,9 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 THE_ODDS_API_KEY = "0e12fe136a3131cc54933f95157b3b69"
 SPORTS_KEYS = ["soccer_fifa_world_cup", "soccer_brazil_serie_b"]
+
+# Списоку ID, які ми повністю ігноруємо, щоб не викликати помилок тригерів Supabase
+IGNORED_MATCH_IDS = [784686] 
 
 # Ручне введення на випадок затримок API
 MANUAL_RESULTS = {
@@ -216,10 +221,15 @@ def sync_upcoming_matches(sport_key):
             return
             
         for match in response:
+            db_id = generate_stable_id(match.get("id"))
+            
+            # Якщо цей матч у списку ігнорування - пропускаємо
+            if db_id in IGNORED_MATCH_IDS:
+                continue
+
             home_team = match.get("home_team")
             away_team = match.get("away_team")
             start_time = match.get("commence_time")
-            db_id = generate_stable_id(match.get("id"))
             
             bookmakers = match.get("bookmakers", [])
             home_odds, draw_odds, away_odds = None, None, None
@@ -238,7 +248,6 @@ def sync_upcoming_matches(sport_key):
             if existing_match and existing_match[0].get("status") == "finished":
                 continue
 
-            # ВИПРАВЛЕНО: Прибрали sport_title, бо цієї колонки немає в твоїй таблиці
             match_data = {
                 "id": db_id, 
                 "home_team": home_team, 
@@ -261,8 +270,12 @@ def sync_completed_results(sport_key):
         if isinstance(response, list):
             for match in response:
                 if match.get("completed", False):
-                    home_team = match.get("home_team")
                     db_id = generate_stable_id(match.get("id"))
+                    
+                    if db_id in IGNORED_MATCH_IDS:
+                        continue
+
+                    home_team = match.get("home_team")
                     scores = match.get("scores", [])
                     if scores:
                         h_score = next((int(s["score"]) for s in scores if s["name"] == home_team), None)
@@ -277,9 +290,12 @@ def sync_completed_results(sport_key):
         db_matches = supabase.table("matches").select("*").eq("status", "scheduled").execute().data
         
         for m in db_matches:
+            db_id = m["id"]
+            if db_id in IGNORED_MATCH_IDS:
+                continue
+
             match_time = datetime.fromisoformat(m["start_time"].replace("Z", "+00:00"))
             home_team = m["home_team"]
-            db_id = m["id"]
 
             if home_team in MANUAL_RESULTS:
                 res = MANUAL_RESULTS[home_team]
@@ -299,9 +315,7 @@ def update_match_and_points(db_id, home_score, away_score, source):
             "status": "finished", "home_score": home_score, "away_score": away_score
         }).eq("id", db_id).execute()
         
-        print(f"🔥 ЗАКРИТО МАТЧ через {source}! Рахунок: {home_score}:{away_score}")
-        
-        # Безпечно викликаємо підрахунок балів
+        print(f"🔥 ЗАКРИТО МАТЧ через {source}! ID: {db_id} -> Рахунок: {home_score}:{away_score}")
         calculate_user_points(db_id, home_score, away_score)
     except Exception as e:
         print(f"⚠️ Помилка оновлення матчу {db_id}: {e}")
@@ -318,7 +332,6 @@ def calculate_user_points(match_id, real_home, real_away):
 
         real_res = "1" if real_home > real_away else ("2" if real_away > real_home else "X")
         
-        # Запит загорнутий у try-except, щоб помилка пермішеній таблиці predictions не ламала весь скрипт
         try:
             predictions = supabase.table("predictions").select("*").eq("match_id", match_id).execute().data
         except Exception as perm_err:
