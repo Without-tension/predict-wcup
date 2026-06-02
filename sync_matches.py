@@ -230,10 +230,7 @@ def sync_upcoming_matches(sport_key):
                         elif name == away_team: away_odds = float(price)
                         elif name in ["Draw", "draw", "X"]: draw_odds = float(price)
 
-            # Перевіряємо, чи є матч в базі
             existing = supabase.table("matches").select("*").eq("home_team", home_team).eq("away_team", away_team).execute().data
-            
-            # Якщо є матч, який вже завершено - не чіпаємо його
             if existing and any(m.get("status") == "finished" for m in existing):
                 continue
 
@@ -271,25 +268,27 @@ def sync_completed_results(sport_key):
         print(f"⚠️ Помилка авто-результатів: {e}")
 
 def find_and_update_match(home_team, away_team, home_score, away_score, source):
-    """Шукає найактуальніший нерозрахований матч за назвою команд (ігноруючи зсуви дат)"""
+    """Шукає запланований матч і безпечно вносить рахунок"""
     try:
         db_matches = supabase.table("matches").select("*").eq("home_team", home_team).eq("away_team", away_team).eq("status", "scheduled").execute().data
-        
         if not db_matches:
             return
 
-        # Беремо найперший знайдений запланований матч цих команд
         target_match = db_matches[0]
         db_id = target_match["id"]
 
-        supabase.table("matches").update({
-            "status": "finished", 
-            "home_score": home_score, 
-            "away_score": away_score
-        }).eq("id", db_id).execute()
-        
-        print(f"🔥 АВТО-ОБНОВЛЕННЯ: {home_team} vs {away_team} -> Рахунок {home_score}:{away_score} ({source})")
-        calculate_user_points(db_id, home_score, away_score)
+        # Оновлюємо статус індивідуально всередині блоку try-except
+        try:
+            supabase.table("matches").update({
+                "status": "finished", 
+                "home_score": home_score, 
+                "away_score": away_score
+            }).eq("id", db_id).execute()
+            print(f"🔥 АВТО-ОБНОВЛЕННЯ: {home_team} vs {away_team} -> Рахунок {home_score}:{away_score} ({source})")
+            calculate_user_points(db_id, home_score, away_score)
+        except Exception as db_err:
+            print(f"⚠️ База даних заблокувала запис результату для {home_team}: {db_err}")
+            
     except Exception as e:
         print(f"⚠️ Помилка закриття матчу {home_team}: {e}")
 
@@ -327,7 +326,7 @@ def calculate_user_points(match_id, real_home, real_away):
         print(f"⚠️ Помилка лідерборду: {e}")
 
 def main():
-    print("🏆 ЗАПУСК ЧИСТОЇ АВТОНОМНОЇ СИНХРОНІЗАЦІЇ 🏆")
+    print("🏆 ЗАПУСК АВТОНОМНОЇ СИНХРОНІЗАЦІЇ РЕЗУЛЬТАТІВ 🏆")
     for sport in SPORTS_KEYS:
         sync_upcoming_matches(sport)
         sync_completed_results(sport)
