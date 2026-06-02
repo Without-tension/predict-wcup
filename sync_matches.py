@@ -230,7 +230,14 @@ def sync_upcoming_matches(sport_key):
                         elif name == away_team: away_odds = float(price)
                         elif name in ["Draw", "draw", "X"]: draw_odds = float(price)
 
-            existing = supabase.table("matches").select("*").eq("home_team", home_team).eq("away_team", away_team).execute().data
+            # 🛠️ ВИПРАВЛЕНО: Шукаємо унікальний матч за трьома параметрами (включаючи час), щоб не чіпляти старі кола чемпіонату
+            existing = supabase.table("matches") \
+                .select("*") \
+                .eq("home_team", home_team) \
+                .eq("away_team", away_team) \
+                .eq("start_time", start_time) \
+                .execute().data
+                
             if existing and any(m.get("status") == "finished" for m in existing):
                 continue
 
@@ -244,7 +251,13 @@ def sync_upcoming_matches(sport_key):
                 "draw_odds": draw_odds, 
                 "away_odds": away_odds
             }
-            supabase.table("matches").upsert(match_data).execute()
+            
+            # 🛡️ БЕЗПЕКА: Додаємо параметр on_conflict. Тепер Supabase знає, що при збігу цих полів треба просто оновити коефіцієнти
+            supabase.table("matches").upsert(
+                match_data, 
+                on_conflict="home_team,away_team,start_time"
+            ).execute()
+            
         print(f"✅ Лінії для {sport_key} успішно оновлено.")
     except Exception as e:
         print(f"⚠️ Помилка ліній {sport_key}: {e}")
@@ -268,7 +281,6 @@ def sync_completed_results(sport_key):
         print(f"⚠️ Помилка авто-результатів: {e}")
 
 def find_and_update_match(home_team, away_team, home_score, away_score, source):
-    """Шукає запланований матч і безпечно вносить рахунок"""
     try:
         db_matches = supabase.table("matches").select("*").eq("home_team", home_team).eq("away_team", away_team).eq("status", "scheduled").execute().data
         if not db_matches:
@@ -277,7 +289,6 @@ def find_and_update_match(home_team, away_team, home_score, away_score, source):
         target_match = db_matches[0]
         db_id = target_match["id"]
 
-        # Оновлюємо статус індивідуально всередині блоку try-except
         try:
             supabase.table("matches").update({
                 "status": "finished", 
