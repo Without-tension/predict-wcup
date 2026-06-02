@@ -88,7 +88,6 @@ export default function App() {
       return;
     }
 
-    // Миттєве фонове оновлення стейту
     setPredictions(prev => ({ ...prev, [matchId]: choice }));
 
     try {
@@ -120,8 +119,6 @@ export default function App() {
 
   if (!session) return <Auth />;
 
-  // Залізобетонне сортування: спочатку невідгадані (вгору), відгадані (вниз). 
-  // Всередині кожної групи — строго хронологічно.
   const displayMatches = [...matches].sort((a, b) => {
     const hasA = !!predictions[a.id];
     const hasB = !!predictions[b.id];
@@ -150,7 +147,6 @@ export default function App() {
 
       <main className="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* БЛОК МАТЧІВ З ЕФЕКТОМ М'ЯКОГО ШТОВХАННЯ КАРТОК */}
         <div className="lg:col-span-2">
           {loading ? (
             <div className="space-y-1">
@@ -161,9 +157,8 @@ export default function App() {
               📌 Немає активних матчів.
             </div>
           ) : (
-            /* LayoutGroup синхронізує рух усіх дочірніх об'єктів одночасно */
             <LayoutGroup>
-              <div className="style-container flex flex-col gap-0.5">
+              <div className="flex flex-col gap-0.5">
                 
                 {displayMatches.map((match, index) => {
                   const hasPred = !!predictions[match.id];
@@ -172,7 +167,6 @@ export default function App() {
                   return (
                     <div key={match.id}>
                       
-                      {/* Лінія розподілу виноситься окремо, щоб не ламати геометрію картки */}
                       {hasPred && index === firstPredictedIndex && (
                         <motion.div 
                           layout="position"
@@ -185,12 +179,13 @@ export default function App() {
                       )}
 
                       <motion.div
-                        layout  // Магічний атрибут Framer Motion для плавного руху
+                        layout
+                        /* 🔥 НАЛАШТУВАННЯ НАДПЛАВНОЇ ІНЕРЦІЙНОЇ ПРУЖИНИ */
                         transition={{
                           type: "spring",
-                          stiffness: 140,  // М'якість пружини
-                          damping: 20,     // Опір (ефект штовхання сусідів)
-                          mass: 0.8
+                          stiffness: 18,   // Дуже м'який рух, прибирає різкість
+                          damping: 12,     // Робить зупинку плавною
+                          mass: 2.5        // Дає картці велику "вагу" для штовхання інших
                         }}
                         className="w-full"
                       >
@@ -244,7 +239,7 @@ export default function App() {
         </div>
       </main>
 
-      {/* WEB3 МОДАЛЬНЕ ВІКНО */}
+      {/* WEB3 МОДАЛЬНЕ ВІКНО ПЕРЕГЛЯДУ ЧУЖИХ СТАВОК */}
       {selectedUser && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl p-6 relative">
