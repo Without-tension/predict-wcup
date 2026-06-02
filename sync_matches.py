@@ -182,7 +182,6 @@
 #     main()
 
 
-
 import os
 import requests
 import hashlib
@@ -197,16 +196,23 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 THE_ODDS_API_KEY = "0e12fe136a3131cc54933f95157b3b69"
 SPORTS_KEYS = ["soccer_fifa_world_cup", "soccer_brazil_serie_b"]
 
-# Списоку ID, які ми повністю ігноруємо, щоб не викликати помилок тригерів Supabase
-IGNORED_MATCH_IDS = [784686] 
-
-# Ручне введення на випадок затримок API
+# =====================================================================
+# ⚙️ АДМІНСЬКА ПАНЕЛЬ РУЧНОГО ВВЕДЕННЯ РАХУНКУ
+# Якщо API затримує рахунок, вписуй назву домашньої команди і результат сюди
+# =====================================================================
 MANUAL_RESULTS = {
     "Ponte Preta": {"home_score": 1, "away_score": 0},
 }
 
 def generate_stable_id(api_id_str):
     return int(hashlib.md5(api_id_str.encode('utf-8')).hexdigest(), 16) % 1000000
+
+def get_date_string(iso_string):
+    """Витягує суто дату (РРРР-ММ-ДД) для точного порівняння днів матчу в плей-офф"""
+    try:
+        return iso_string.split("T")[0]
+    except:
+        return iso_string
 
 def sync_upcoming_matches(sport_key):
     url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds/"
@@ -221,15 +227,10 @@ def sync_upcoming_matches(sport_key):
             return
             
         for match in response:
-            db_id = generate_stable_id(match.get("id"))
-            
-            # Якщо цей матч у списку ігнорування - пропускаємо
-            if db_id in IGNORED_MATCH_IDS:
-                continue
-
             home_team = match.get("home_team")
             away_team = match.get("away_team")
             start_time = match.get("commence_time")
+            db_id = generate_stable_id(match.get("id"))
             
             bookmakers = match.get("bookmakers", [])
             home_odds, draw_odds, away_odds = None, None, None
@@ -244,12 +245,21 @@ def sync_upcoming_matches(sport_key):
                         elif name == away_team: away_odds = float(price)
                         elif name in ["Draw", "draw", "X"]: draw_odds = float(price)
 
-            existing_match = supabase.table("matches").select("status").eq("id", db_id).execute().data
-            if existing_match and existing_match[0].get("status") == "finished":
+            # Шукаємо матч за трьома маркерами: Home + Away + Date (день)
+            match_date = get_date_string(start_time)
+            db_matches = supabase.table("matches").select("*").eq("home_team", home_team).eq("away_team", away_team).execute().data
+            
+            existing = None
+            for m in db_matches:
+                if get_date_string(m.get("start_time")) == match_date:
+                    existing = m
+                    break
+
+            if existing and existing.get("status") == "finished":
                 continue
 
             match_data = {
-                "id": db_id, 
+                "id": existing.get("id") if existing else db_id, 
                 "home_team": home_team, 
                 "away_team": away_team, 
                 "start_time": start_time,
@@ -270,55 +280,60 @@ def sync_completed_results(sport_key):
         if isinstance(response, list):
             for match in response:
                 if match.get("completed", False):
-                    db_id = generate_stable_id(match.get("id"))
-                    
-                    if db_id in IGNORED_MATCH_IDS:
-                        continue
-
                     home_team = match.get("home_team")
+                    away_team = match.get("away_team")
+                    start_time = match.get("commence_time")
                     scores = match.get("scores", [])
                     if scores:
                         h_score = next((int(s["score"]) for s in scores if s["name"] == home_team), None)
                         a_score = next((int(s["score"]) for s in scores if s["name"] != home_team), None)
                         if h_score is not None and a_score is not None:
-                            update_match_and_points(db_id, h_score, a_score, f"API ({sport_key})")
+                            # Закриваємо матч, порівнюючи команди + день гри
+                            find_and_update_match(home_team, away_team, start_time, h_score, a_score, f"API ({sport_key})")
     except Exception as e:
         print(f"⚠️ Помилка авто-результатів: {e}")
 
+    # Перевірка ручного введення
     try:
-        now = datetime.now(timezone.utc)
         db_matches = supabase.table("matches").select("*").eq("status", "scheduled").execute().data
-        
         for m in db_matches:
-            db_id = m["id"]
-            if db_id in IGNORED_MATCH_IDS:
-                continue
-
-            match_time = datetime.fromisoformat(m["start_time"].replace("Z", "+00:00"))
             home_team = m["home_team"]
-
+            away_team = m["away_team"]
+            start_time = m["start_time"]
+            
             if home_team in MANUAL_RESULTS:
                 res = MANUAL_RESULTS[home_team]
-                update_match_and_points(db_id, res["home_score"], res["away_score"], "Адмін-панель")
-            elif now > (match_time + timedelta(hours=2, minutes=30)):
-                print(f"🕒 Матч {home_team} завершився за часом. Чекаємо оновлення результату...")
+                find_and_update_match(home_team, away_team, start_time, res["home_score"], res["away_score"], "Адмін-панель")
     except Exception as e:
-        print(f"⚠️ Помилка фалбеку за часом: {e}")
+        print(f"⚠️ Помилка фалбеку: {e}")
 
-def update_match_and_points(db_id, home_score, away_score, source):
+def find_and_update_match(home_team, away_team, start_time, home_score, away_score, source):
+    """Шукає та закриває матч за залізобетонним потрійним маркером: Home + Away + День гри"""
     try:
-        match_check = supabase.table("matches").select("status").eq("id", db_id).execute().data
-        if match_check and match_check[0].get("status") == "finished":
+        match_date = get_date_string(start_time)
+        
+        # Тягнемо з бази всі матчі цих двох команд
+        db_matches = supabase.table("matches").select("*").eq("home_team", home_team).eq("away_team", away_team).execute().data
+        
+        # Шукаємо той, який збігається по даті (дню)
+        target_match = None
+        for m in db_matches:
+            if get_date_string(m.get("start_time")) == match_date:
+                target_match = m
+                break
+
+        if not target_match or target_match.get("status") == "finished":
             return
 
+        db_id = target_match["id"]
         supabase.table("matches").update({
             "status": "finished", "home_score": home_score, "away_score": away_score
         }).eq("id", db_id).execute()
         
-        print(f"🔥 ЗАКРИТО МАТЧ через {source}! ID: {db_id} -> Рахунок: {home_score}:{away_score}")
+        print(f"🔥 ЗАКРИТО ЗА ТРЬОМА МАРКЕРАМИ: {home_team} vs {away_team} від {match_date} -> Рахунок {home_score}:{away_score} ({source})")
         calculate_user_points(db_id, home_score, away_score)
     except Exception as e:
-        print(f"⚠️ Помилка оновлення матчу {db_id}: {e}")
+        print(f"⚠️ Помилка закриття матчу {home_team}: {e}")
 
 def calculate_user_points(match_id, real_home, real_away):
     try:
@@ -335,7 +350,6 @@ def calculate_user_points(match_id, real_home, real_away):
         try:
             predictions = supabase.table("predictions").select("*").eq("match_id", match_id).execute().data
         except Exception as perm_err:
-            print(f"⚠️ Тимчасовий пропуск лідерборду (немає доступу до predictions): {perm_err}")
             return
 
         if not predictions: return
@@ -359,11 +373,11 @@ def calculate_user_points(match_id, real_home, real_away):
         print(f"⚠️ Помилка лідерборду: {e}")
 
 def main():
-    print("🏆 ЗАПУСК БЕЗПЕЧНОЇ СИНХРОНІЗАЦІЇ ПЛАН Б 🏆")
+    print("🏆 ЗАПУСК ЗАЛІЗОБЕТОННОЇ СИНХРОНІЗАЦІЇ (КОМАНДИ + ДАТА) 🏆")
     for sport in SPORTS_KEYS:
         sync_upcoming_matches(sport)
         sync_completed_results(sport)
-    print("\n🎉 Автоматичні процеси виконано!")
+    print("\n🎉 Система повністю синхронізована!")
 
 if __name__ == "__main__":
     main()
