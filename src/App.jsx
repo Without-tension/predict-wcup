@@ -80,7 +80,7 @@ export default function App() {
     setLoadingUserPreds(false);
   };
 
-  // 🔥 ЗАЛІЗОБЕТОННЕ РІШЕННЯ БЕЗ ПЕРЕЗАВАНТАЖЕНЬ ТА МИГОТІННЯ
+  // Фонове збереження прогнозу: без перезавантажень сторінки
   const handlePredict = async (matchId, choice) => {
     const match = matches.find(m => m.id === matchId);
     if (!match || match.status === 'finished' || new Date() >= new Date(match.start_time)) {
@@ -88,12 +88,9 @@ export default function App() {
       return;
     }
 
-    // КРОК 1: Миттєво міняємо стейт у самому React.
-    // Картка відразу почне плавно переміщатися вниз без жодних затримок
+    // Миттєво міняємо локальний стейт для тригеру CSS-анімації зсуву
     setPredictions(prev => ({ ...prev, [matchId]: choice }));
 
-    // КРОК 2: Тихо відправляємо дані в Supabase на фоні.
-    // МИ БІЛЬШЕ НЕ ВИКЛИКАЄМО fetchData() І НЕВМИКАЄМО setLoading(true)!
     try {
       const { error } = await supabase
         .from('predictions')
@@ -104,8 +101,6 @@ export default function App() {
       
       if (error) throw error;
 
-      // КРОК 3: Оновлюємо лідерборд на фоні, якщо хтось паралельно набрав бали,
-      // але робимо це абсолютно непомітно для інтерфейсу
       const { data: leaderData } = await supabase
         .from('leaderboard')
         .select('*')
@@ -114,7 +109,6 @@ export default function App() {
       if (leaderData) setLeaderboard(leaderData);
 
     } catch (error) {
-      // Якщо на сервері щось впало — тільки тоді повертаємо старий стан картки назад
       alert("Помилка збереження прогнозу: " + error.message);
       setPredictions(prev => {
         const copy = { ...prev };
@@ -126,25 +120,11 @@ export default function App() {
 
   if (!session) return <Auth />;
 
-  const isBrazilLeague = (m) => {
-    const text = (m.home_team + m.away_team).toLowerCase();
-    return text.includes('ponte preta') || text.includes('operario') || text.includes('coritiba') || 
-           text.includes('santos') || text.includes('botafogo') || text.includes('chapecoense') || 
-           text.includes('ceara') || text.includes('sport recife') || text.includes('mirassol') || 
-           text.includes('vila nova') || text.includes('novorizontino') || text.includes('crb') || 
-           text.includes('paysandu') || text.includes('guarani') || text.includes('brusque') || 
-           text.includes('ituano') || text.includes('goias') || text.includes('amazonas') || 
-           text.includes('america mg') || text.includes('avai');
-  };
+  // Сортуємо весь загальний масив матчів строго за часом початку (start_time)
+  const sortedMatches = [...matches].sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
 
-  // Розподіл масивів (завжди відсортовані за часом start_time)
-  const unpredictedMatches = matches
-    .filter(m => !predictions[m.id])
-    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
-
-  const predictedMatches = matches
-    .filter(m => predictions[m.id])
-    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+  // Рахуємо кількість уже зроблених прогнозів користувача
+  const predictedCount = matches.filter(m => predictions[m.id]).length;
 
   return (
     <div className="min-h-screen bg-gray-950 text-white font-sans antialiased">
@@ -165,8 +145,8 @@ export default function App() {
 
       <main className="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* БЛОК МАТЧІВ З АВТОМАТИЧНИМ ПЕРЕМІЩЕННЯМ */}
-        <div className="lg:col-span-2 space-y-10">
+        {/* БЛОК МАТЧІВ З ЕФЕКТОМ ПЛАВНОГО ШТОВХАННЯ СУСІДНІХ КАРТОК */}
+        <div className="lg:col-span-2 space-y-6">
           {loading ? (
             <div className="space-y-1">
               <SkeletonCard /><SkeletonCard /><SkeletonCard />
@@ -176,54 +156,48 @@ export default function App() {
               📌 Немає активних матчів.
             </div>
           ) : (
-            <div className="space-y-10">
+            <div className="flex flex-col gap-1 transition-all duration-700 dynamic-match-container">
               
-              {/* СЕКЦІЯ 1: ПОТРІБНО ЗРОБИТИ ПРОГНОЗ */}
-              <div>
-                <h2 className="text-xs font-bold uppercase tracking-wider mb-4 text-orange-400 border-l-4 border-orange-500 pl-3">
-                  🔥 Потрібно зробити прогноз ({unpredictedMatches.length})
-                </h2>
-                <div className="space-y-1 transition-all duration-500 ease-in-out">
-                  {unpredictedMatches.map((match) => (
-                    <div 
-                      key={match.id} 
-                      className="transition-all duration-500 ease-in-out transform hover:translate-x-1 relative"
-                    >
-                      <div className="absolute left-6 mt-[18px] z-10 pointer-events-none">
-                        <span className={`text-[9px] uppercase font-black px-1.5 py-0.5 rounded ${isBrazilLeague(match) ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' : 'bg-green-500/10 text-green-400 border border-green-500/20'}`}>
-                          {isBrazilLeague(match) ? 'Бразилія Б' : 'ЧС Світ'}
-                        </span>
-                      </div>
-                      <MatchCard match={match} userPrediction={predictions[match.id]} onMakePrediction={handlePredict} />
-                    </div>
-                  ))}
-                  {unpredictedMatches.length === 0 && (
-                    <p className="text-sm text-gray-500 italic pl-4 py-4">🎉 Всі прогнози заповнено! Ти красень.</p>
-                  )}
-                </div>
-              </div>
+              {/* Стилі для плавного переміщення елементів у флекс-контейнері */}
+              <style>{`
+                .dynamic-match-container {
+                  display: flex;
+                  flex-direction: column;
+                }
+                .animated-match-row {
+                  transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+                  position: relative;
+                  z-index: 10;
+                }
+                /* Картки без ставки отримують пріоритет (order: 1) */
+                .state-unpredicted {
+                  order: 1;
+                }
+                /* Картки зі ставкою плавно їдуть донизу (order: 2) */
+                .state-predicted {
+                  order: 2;
+                  opacity: 0.75;
+                }
+              `}</style>
 
-              {/* СЕКЦІЯ 2: ВЖЕ ПРОГНОЗОВАНІ МАТЧІ (ПЛАВНО СПУСКАЮТЬСЯ СЮДИ ЗА ЧАСОМ) */}
-              {predictedMatches.length > 0 && (
-                <div>
-                  <h2 className="text-xs font-bold uppercase tracking-wider mb-4 text-green-400 border-l-4 border-green-500 pl-3">
-                    ✅ Прогнози зроблено ({predictedMatches.length})
-                  </h2>
-                  <div className="space-y-1 transition-all duration-500 ease-in-out">
-                    {predictedMatches.map((match) => (
-                      <div 
-                        key={match.id} 
-                        className="transition-all duration-500 ease-in-out opacity-85 transform relative"
-                      >
-                        <div className="absolute left-6 mt-[18px] z-10 pointer-events-none">
-                          <span className={`text-[9px] uppercase font-black px-1.5 py-0.5 rounded ${isBrazilLeague(match) ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' : 'bg-green-500/10 text-green-400 border border-green-500/20'}`}>
-                            {isBrazilLeague(match) ? 'Бразилія Б' : 'ЧС Світ'}
-                          </span>
-                        </div>
-                        <MatchCard match={match} userPrediction={predictions[match.id]} onMakePrediction={handlePredict} />
-                      </div>
-                    ))}
+              {sortedMatches.map((match) => {
+                const hasPrediction = !!predictions[match.id];
+                return (
+                  <div 
+                    key={match.id} 
+                    className={`animated-match-row ${hasPrediction ? 'state-predicted' : 'state-unpredicted'}`}
+                  >
+                    <MatchCard match={match} userPrediction={predictions[match.id]} onMakePrediction={handlePredict} />
                   </div>
+                );
+              })}
+
+              {/* ЛАКОНІЧНИЙ НИЖНІЙ ЗАГОЛОВОК ЗАМІСТЬ ВЕРХНЬОГО БЛОКУ */}
+              {predictedCount > 0 && (
+                <div className="order-2 pt-6 pb-2 border-t border-gray-900/60 mt-4">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-green-400 border-l-4 border-green-500 pl-3">
+                    ✅ Прогнози зроблено ({predictedCount})
+                  </h2>
                 </div>
               )}
 
@@ -266,7 +240,7 @@ export default function App() {
         </div>
       </main>
 
-      {/* WEB3 МОДАЛЬНЕ ВІКНО ПЕРЕГЛЯДУ */}
+      {/* WEB3 МОДАЛЬНЕ ВІКНО ПЕРЕГЛЯДУ ЧУЖИХ СТАВОК */}
       {selectedUser && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl p-6 relative">
