@@ -9,7 +9,7 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
 
-  // Стейти для адмін-панелі скидання паролів
+  // Стейти для admin-панелі
   const [adminTargetUser, setAdminTargetUser] = useState('');
   const [adminNewPassword, setAdminNewPassword] = useState('');
   const [adminLoading, setAdminLoading] = useState(false);
@@ -96,7 +96,6 @@ export default function App() {
     setLoading(false);
   };
 
-  // 🔥 Секретна функція зміни пароля адміном прямо через клієнтський API Supabase
   const handleAdminResetPassword = async (e) => {
     e.preventDefault();
     if (!adminTargetUser.trim() || !adminNewPassword.trim()) {
@@ -109,8 +108,6 @@ export default function App() {
     }
 
     setAdminLoading(true);
-    
-    // Формуємо системний email фейкового акаунту
     const targetEmail = `${adminTargetUser.trim().toLowerCase()}@predict.wcup`;
 
     try {
@@ -120,7 +117,6 @@ export default function App() {
       });
 
       alert(`Спроба змінити пароль для ${adminTargetUser}. Якщо RPC активовано, пароль оновлено!`);
-      
       setAdminTargetUser('');
       setAdminNewPassword('');
     } catch (err) {
@@ -183,12 +179,11 @@ export default function App() {
   };
 
   if (isAuthChecking) {
-    return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-400 text-sm font-semibold tracking-wider">Завантаження контенту...</div>;
+    return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-400 text-sm font-semibold tracking-wider px-4 text-center">Завантаження контенту...</div>;
   }
 
   if (!session) return <Auth />;
 
-  // 🛡️ Перевірка: чи є поточний користувач адміном
   const isAdmin = session.user.email === 'ros@predict.wcup' || session.user.email.startsWith('admin');
 
   const unpredictedMatches = matches
@@ -204,75 +199,79 @@ export default function App() {
     .sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white font-sans antialiased flex flex-col justify-between">
+    <div className="min-h-screen bg-gray-950 text-white font-sans antialiased flex flex-col justify-between selection:bg-green-500/30">
       <div>
-        <header className="flex justify-between items-center border-b border-gray-900 bg-gray-900/40 backdrop-blur px-6 py-4 sticky top-0 z-50">
+        <header className="flex flex-col sm:flex-row justify-between items-center border-b border-gray-900 bg-gray-900/40 backdrop-blur px-4 sm:px-6 py-3.5 sticky top-0 z-50 gap-2 sm:gap-0">
           <div className="flex items-center gap-2">
-            <span className="text-2xl">🏆</span>
-            <h1 className="text-xl font-black text-green-400 tracking-wider uppercase">Predict World Cup</h1>
+            <span className="text-xl sm:text-2xl">🏆</span>
+            <h1 className="text-lg sm:text-xl font-black text-green-400 tracking-wider uppercase">Predict World Cup</h1>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-400 bg-gray-900 px-3 py-1.5 rounded-xl border border-gray-800 font-semibold">
+          <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-3 sm:gap-4">
+            <span className="text-xs sm:text-sm text-gray-400 bg-gray-900 px-3 py-1.5 rounded-xl border border-gray-800 font-semibold truncate max-w-[180px] sm:max-w-none">
               👤 {session.user.email.split('@')[0]}
             </span>
             <button onClick={() => {
               localStorage.clear();
               supabase.auth.signOut();
-            }} className="rounded-xl bg-red-600/10 text-red-400 border border-red-500/20 px-4 py-2 text-sm font-semibold hover:bg-red-600 hover:text-white transition-all cursor-pointer">
+            }} className="rounded-xl bg-red-600/10 text-red-400 border border-red-500/20 px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold hover:bg-red-600 hover:text-white transition-all cursor-pointer active:scale-95">
               Вийти
             </button>
           </div>
         </header>
 
-        <main className="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <main className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           
-          {/* БЛОК МАТЧІВ */}
-          <div className="lg:col-span-2 space-y-10">
+          {/* БЛОК МАТЧІВ — відстані зменшено через space-y-6 */}
+          <div className="lg:col-span-2 space-y-6 sm:space-y-8 order-2 lg:order-1">
             {loading ? (
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <SkeletonCard /><SkeletonCard /><SkeletonCard />
               </div>
             ) : matches.length === 0 ? (
-              <div className="text-center text-gray-500 py-12 border border-dashed border-gray-800 rounded-2xl bg-gray-900/20">
+              <div className="text-center text-gray-500 py-10 px-4 border border-dashed border-gray-800 rounded-2xl bg-gray-900/20 text-sm">
                 📌 Немає активних матчів.
               </div>
             ) : (
-              <div className="space-y-10">
-                <div className="flex flex-col">
-                  <AnimatePresence mode="sync">
+              <div className="space-y-6 sm:space-y-8">
+                {/* ВЕРХНІЙ СПИСОК */}
+                <div className="flex flex-col gap-2">
+                  <AnimatePresence mode="popLayout">
                     {unpredictedMatches.map((match) => (
                       <motion.div
                         key={match.id}
                         layout="position"
-                        initial={{ opacity: 1 }}
-                        exit={{ opacity: 0, transition: { type: "tween", ease: "easeInOut", duration: 0.6 } }}
-                        transition={{ type: "tween", ease: "easeInOut", duration: 0.5 }}
-                        className="w-full"
+                        initial={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.25 } }}
+                        transition={{ type: "spring", stiffness: 350, damping: 32 }}
+                        whileHover={{ scale: 1.01, y: -1 }}
+                        className="w-full origin-center will-change-transform"
                       >
                         <MatchCard match={match} userPrediction={predictions[match.id]} onMakePrediction={handlePredict} />
                       </motion.div>
                     ))}
                   </AnimatePresence>
                   {unpredictedMatches.length === 0 && (
-                    <p className="text-sm text-gray-500 italic pl-4 py-4">🎉 Всі доступні прогнози заповнено!</p>
+                    <p className="text-xs text-gray-500 italic pl-4 py-1">🎉 Всі доступні прогнози заповнено!</p>
                   )}
                 </div>
 
+                {/* СЕРЕДНІЙ СПИСОК */}
                 {predictedMatches.length > 0 && (
-                  <div className="pt-6 border-t border-gray-900/60">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-green-400 border-l-4 border-green-500 pl-3 mb-4">
+                  <div className="pt-4 border-t border-gray-900/60">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-green-400 border-l-4 border-green-500 pl-3 mb-3">
                       ✅ Прогнози зроблено ({predictedMatches.length})
                     </h2>
-                    <div className="flex flex-col">
-                      <AnimatePresence mode="sync">
+                    <div className="flex flex-col gap-2">
+                      <AnimatePresence mode="popLayout">
                         {predictedMatches.map((match) => (
                           <motion.div
                             key={match.id}
                             layout="position"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 0.8 }}
-                            transition={{ type: "tween", ease: "easeInOut", duration: 0.4 }}
-                            className="w-full"
+                            initial={{ opacity: 0.8 }}
+                            animate={{ opacity: 0.9 }}
+                            whileHover={{ scale: 1.005, opacity: 1 }}
+                            transition={{ type: "spring", stiffness: 350, damping: 32 }}
+                            className="w-full origin-center will-change-transform"
                           >
                             <MatchCard match={match} userPrediction={predictions[match.id]} onMakePrediction={handlePredict} />
                           </motion.div>
@@ -282,12 +281,13 @@ export default function App() {
                   </div>
                 )}
 
+                {/* НИЖНІЙ СПИСОК */}
                 {finishedMatches.length > 0 && (
-                  <div className="pt-6 border-t border-gray-900/60">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-red-400 border-l-4 border-red-500 pl-3 mb-4">
+                  <div className="pt-4 border-t border-gray-900/60">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-red-400 border-l-4 border-red-500 pl-3 mb-3">
                       🏁 Завершені матчі ({finishedMatches.length})
                     </h2>
-                    <div className="flex flex-col opacity-60">
+                    <div className="flex flex-col gap-2 opacity-60">
                       {finishedMatches.map((match) => (
                         <div key={match.id} className="w-full">
                           <MatchCard match={match} userPrediction={predictions[match.id]} onMakePrediction={handlePredict} isReadOnly={true} />
@@ -300,119 +300,99 @@ export default function App() {
             )}
           </div>
 
-          {/* ПРАВА КОЛОНКА */}
-          <div className="space-y-6">
-            {/* ТАБЛИЦЯ ЛІДЕРІВ */}
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 shadow-xl">
-              <h2 className="text-lg font-black mb-4 tracking-tight text-gray-100">Таблиця лідерів</h2>
-              <div className="space-y-2">
-                <div className="grid grid-cols-12 text-xs font-bold text-gray-500 uppercase px-2 pb-2 border-b border-gray-800 text-center">
-                  <span className="col-span-5 text-left">Гравець</span>
-                  <span className="col-span-3">Враховано</span>
-                  <span className="col-span-2">Бали</span>
-                  <span className="col-span-2">Коеф.</span>
-                </div>
-
-                {loading && leaderboard.length === 0 ? (
-                  <div className="space-y-2 pt-2 animate-pulse">
-                    {[1, 2, 3].map((n) => (
-                      <div key={n} className="grid grid-cols-12 items-center p-2">
-                        <div className="col-span-5 flex items-center gap-2"><div className="h-4 bg-gray-800 rounded w-20"></div></div>
-                        <div className="col-span-3 h-4 bg-gray-800 rounded w-8 mx-auto"></div>
-                      </div>
-                    ))}
+          {/* ПРАВА КОЛОНКА (ТАБЛИЦЯ ЛІДЕРІВ) */}
+          <div className="space-y-4 order-1 lg:order-2">
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 shadow-xl overflow-hidden">
+              <h2 className="text-base font-black mb-3 tracking-tight text-gray-100 flex items-center gap-2">
+                <span>📊</span> Таблиця лідерів
+              </h2>
+              
+              <div className="overflow-x-auto -mx-4 px-4 scrollbar-none">
+                <div className="min-w-[280px] space-y-1.5">
+                  <div className="grid grid-cols-12 text-[10px] font-bold text-gray-500 uppercase px-2 pb-1.5 border-b border-gray-800 text-center tracking-wider">
+                    <span className="col-span-5 text-left">Гравець</span>
+                    <span className="col-span-3">Матчів</span>
+                    <span className="col-span-2">Бали</span>
+                    <span className="col-span-2">Кф.</span>
                   </div>
-                ) : (
-                  leaderboard.map((player, index) => (
+
+                  {leaderboard.map((player, index) => (
                     <div 
                       key={player.user_id} 
                       onClick={() => handleUserClick(player)}
-                      className={`grid grid-cols-12 items-center text-sm p-2 rounded-xl transition-all text-center cursor-pointer hover:bg-gray-800/60 hover:scale-[1.02]
-                        ${player.user_id === session.user.id ? 'bg-green-500/5 border border-green-500/20' : ''}`}
+                      className={`grid grid-cols-12 items-center text-xs p-1.5 rounded-xl transition-all text-center cursor-pointer hover:bg-gray-800/60 hover:scale-[1.01] active:scale-98
+                        ${player.user_id === session.user.id ? 'bg-green-500/5 border border-green-500/20' : 'border border-transparent'}`}
                     >
-                      <div className="col-span-5 flex items-center gap-1.5 truncate text-left">
-                        <span className="text-xs font-bold text-gray-500 w-4">{index + 1}.</span>
+                      <div className="col-span-5 flex items-center gap-1 truncate text-left">
+                        <span className="text-[10px] font-bold text-gray-500 w-4">{index + 1}.</span>
                         <span className="truncate font-semibold text-gray-300">{player.user_email.split('@')[0]}</span>
                       </div>
                       <span className="col-span-3 text-gray-400 font-semibold">{player.total_predictions}</span>
                       <span className="col-span-2 text-green-400 font-bold">{player.total_points}</span>
                       <span className="col-span-2 text-yellow-500 font-bold">{Number(player.total_odds).toFixed(2)}</span>
                     </div>
-                  ))
-                )}
+                  ))}
+                </div>
               </div>
             </div>
           </div>
         </main>
       </div>
 
-      {/* 👑 СЕКРЕТНА АДМІН-ПАНЕЛЬ СКИДАННЯ ПАРОЛІВ (Опущена в самий низ) */}
+      {/* АДМІН-ПАНЕЛЬ */}
       {isAdmin && (
-        <footer className="w-full max-w-6xl mx-auto px-4 pb-8 mt-12">
-          <div className="bg-gray-900 border border-red-900/30 rounded-2xl p-6 shadow-xl max-w-xl mx-auto">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-lg">🛠️</span>
-              <h3 className="text-sm font-black text-red-400 uppercase tracking-widest">
-                Панель Адміністратора
-              </h3>
+        <footer className="w-full max-w-6xl mx-auto px-3 sm:px-4 pb-4 sm:pb-6 mt-6 order-3">
+          <div className="bg-gray-900 border border-red-900/20 rounded-2xl p-4 shadow-xl max-w-xl mx-auto">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-base">🛠️</span>
+              <h3 className="text-xs font-black text-red-400 uppercase tracking-widest">Панель Адміністратора</h3>
             </div>
-            <p className="text-xs text-gray-400 mb-4 leading-relaxed">
-              Міняй паролі пацанам прямо звідси (зміна пароля через RPC на системний email).
-            </p>
-            <form onSubmit={handleAdminResetPassword} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
-              <input
-                type="text"
-                placeholder="Логін (напр: ros)"
-                value={adminTargetUser}
-                onChange={(e) => setAdminTargetUser(e.target.value)}
-                className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-red-500"
-              />
-              <input
-                type="text"
-                placeholder="Новий пароль (мін. 6 знаків)"
-                value={adminNewPassword}
-                onChange={(e) => setAdminNewPassword(e.target.value)}
-                className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-red-500"
-              />
-              <button
-                type="submit"
-                disabled={adminLoading}
-                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl text-xs transition-colors cursor-pointer disabled:opacity-50"
-              >
-                {adminLoading ? 'Оновлення...' : 'Змінити пароль'}
-              </button>
+            <form onSubmit={handleAdminResetPassword} className="flex flex-col gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="Логін (напр: ros)"
+                  value={adminTargetUser}
+                  onChange={(e) => setAdminTargetUser(e.target.value)}
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-red-500 transition-colors"
+                />
+                <input
+                  type="text"
+                  placeholder="Новий пароль (мін. 6 знаків)"
+                  value={adminNewPassword}
+                  onChange={(e) => setAdminNewPassword(e.target.value)}
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-red-500 transition-colors"
+                />
+              </div>
+              <button type="submit" disabled={adminLoading} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded-xl text-xs transition-colors cursor-pointer active:scale-95">{adminLoading ? 'Оновлення...' : 'Змінити пароль'}</button>
             </form>
           </div>
         </footer>
       )}
 
-      {/* WEB3 МОДАЛЬНЕ ВІКНО ПЕРЕГЛЯДУ */}
+      {/* МОДАЛКА ПЕРЕГЛЯДУ */}
       {selectedUser && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl p-6 relative">
-            <button onClick={() => setSelectedUser(null)} className="absolute top-4 right-4 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white w-8 h-8 rounded-full flex items-center justify-center transition-colors cursor-pointer">✕</button>
-            <div className="mb-6">
-              <p className="text-xs font-bold text-green-400 uppercase tracking-widest">Профіль гравця</p>
-              <h3 className="text-2xl font-black text-white mt-1">{selectedUser.user_email.split('@')[0]}</h3>
-              <div className="flex gap-4 mt-3 text-sm text-gray-400 bg-gray-950/60 p-3 rounded-xl border border-gray-850">
-                <div>Враховано: <span className="text-white font-bold">{selectedUser.total_predictions}</span></div>
-                <div>Бали: <span className="text-green-400 font-bold">{selectedUser.total_points}</span></div>
-                <div>Сума кефів: <span className="text-yellow-500 font-bold">{Number(selectedUser.total_odds).toFixed(2)}</span></div>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl p-4 relative">
+            <button onClick={() => setSelectedUser(null)} className="absolute top-3 right-3 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white w-7 h-7 rounded-full flex items-center justify-center transition-colors cursor-pointer text-sm">✕</button>
+            <div className="mb-4 flex-shrink-0">
+              <p className="text-[10px] font-bold text-green-400 uppercase tracking-widest">Профіль гравця</p>
+              <h3 className="text-xl font-black text-white mt-0.5">{selectedUser.user_email.split('@')[0]}</h3>
+              <div className="grid grid-cols-3 gap-2 mt-2.5 text-center text-xs text-gray-400 bg-gray-950/60 p-2 rounded-xl border border-gray-850">
+                <div>Матчів: <span className="text-white font-bold block">{selectedUser.total_predictions}</span></div>
+                <div>Бали: <span className="text-green-400 font-bold block">{selectedUser.total_points}</span></div>
+                <div>Сума кф: <span className="text-yellow-500 font-bold block">{Number(selectedUser.total_odds).toFixed(2)}</span></div>
               </div>
             </div>
-            <div className="space-y-4">
-              <h4 className="text-sm font-bold text-gray-400 border-b border-gray-800 pb-2">Прогнози гравця:</h4>
-              {loadingUserPreds ? (
-                <div className="space-y-2"><SkeletonCard /><SkeletonCard /></div>
-              ) : (
-                <div className="max-h-[50vh] overflow-y-auto pr-1 space-y-1">
-                  {matches.map((match) => {
-                    const pred = selectedUserPreds[match.id];
-                    if (!pred) return null;
-                    return <MatchCard key={match.id} match={match} userPrediction={pred} isReadOnly={true} />;
-                  })}
-                </div>
-              )}
+            <div className="flex-1 overflow-y-auto pr-0.5 min-h-0">
+              <h4 className="text-xs font-bold text-gray-400 border-b border-gray-800 pb-1.5 mb-2.5 sticky top-0 bg-gray-900 z-10">Прогнози гравця:</h4>
+              <div className="space-y-2">
+                {matches.map((match) => {
+                  const pred = selectedUserPreds[match.id];
+                  if (!pred) return null;
+                  return <div key={match.id} className="w-full"><MatchCard match={match} userPrediction={pred} isReadOnly={true} /></div>;
+                })}
+              </div>
             </div>
           </div>
         </div>

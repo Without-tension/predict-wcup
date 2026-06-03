@@ -67,7 +67,7 @@ export default function Auth() {
             </label>
             <input
               type="text"
-              placeholder="шо хочете то і пишіть"
+              placeholder="не пошта, не номер телефону. Логін!"
               value={username}
               onChange={(e) => setUsername(e.target.value.replace(/\s+/g, ''))} // Забороняємо пробіли в ніку
               className="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-green-500 transition-colors placeholder-gray-600"
