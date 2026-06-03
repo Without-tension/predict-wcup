@@ -9,6 +9,9 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
 
+  // Стейт для перемикання вкладок: 'matches' або 'my_profile'
+  const [currentTab, setCurrentTab] = useState('matches');
+
   // Стейти для admin-панелі
   const [adminTargetUser, setAdminTargetUser] = useState('');
   const [adminNewPassword, setAdminNewPassword] = useState('');
@@ -103,7 +106,7 @@ export default function App() {
       return;
     }
     if (adminNewPassword.length < 6) {
-      alert("Пароль має бути не менше 6 символів!");
+      alert("Пароль має бути не менше 6 знаків!");
       return;
     }
 
@@ -185,6 +188,7 @@ export default function App() {
   if (!session) return <Auth />;
 
   const isAdmin = session.user.email === 'ros@predict.wcup' || session.user.email.startsWith('admin');
+  const currentUserStats = leaderboard.find(player => player.user_id === session.user.id);
 
   const unpredictedMatches = matches
     .filter(m => !predictions[m.id] && m.status !== 'finished')
@@ -201,76 +205,92 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-950 text-white font-sans antialiased flex flex-col justify-between selection:bg-green-500/30">
       <div>
-        <header className="flex flex-col sm:flex-row justify-between items-center border-b border-gray-900 bg-gray-900/40 backdrop-blur px-4 sm:px-6 py-3.5 sticky top-0 z-50 gap-2 sm:gap-0">
-          <div className="flex items-center gap-2">
+        {/* 🚀 ОНОВЛЕНИЙ ОДНОРЯДКОВИЙ МОБІЛЬНИЙ ХЕДЕР БЕЗ ЗАЙВОГО ТЕКСТУ */}
+        <header className="flex flex-row justify-between items-center border-b border-gray-900 bg-gray-900/40 backdrop-blur px-2.5 sm:px-6 py-1.5 sm:py-2.5 sticky top-0 z-50 gap-1.5 sm:gap-2">
+          
+          {/* Логотип: На мобільних лишається тільки Кубок (0px ширини тексту), на ПК показує повний напис */}
+          <div className="flex items-center gap-1 flex-shrink-0 cursor-pointer select-none" onClick={() => setCurrentTab('matches')}>
             <span className="text-xl sm:text-2xl">🏆</span>
-            <h1 className="text-lg sm:text-xl font-black text-green-400 tracking-wider uppercase">Predict World Cup</h1>
+            <h1 className="hidden sm:block text-sm md:text-base font-black text-green-400 tracking-wider uppercase">Predict World Cup</h1>
           </div>
-          <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-3 sm:gap-4">
-            <span className="text-xs sm:text-sm text-gray-400 bg-gray-900 px-3 py-1.5 rounded-xl border border-gray-800 font-semibold truncate max-w-[180px] sm:max-w-none">
-              👤 {session.user.email.split('@')[0]}
+
+          {/* Центральні таби: На смартфонах вони стали ШИРШИМИ і НИЖЧИМИ (py-1 замість py-1.5) */}
+          <div className="flex bg-gray-950 border border-gray-850 p-0.5 rounded-xl flex-1 justify-center gap-0.5 max-w-[240px] sm:max-w-none">
+            <button 
+              onClick={() => setCurrentTab('matches')} 
+              className={`flex-1 sm:flex-none text-[10px] sm:text-xs font-bold px-2 sm:px-4 py-1 sm:py-1.5 rounded-lg transition-all cursor-pointer ${currentTab === 'matches' ? 'bg-green-500/10 text-green-400 border border-green-500/10 shadow-sm' : 'text-gray-400 hover:text-white border border-transparent'}`}
+            >
+              ⚽ Лінія
+            </button>
+            <button 
+              onClick={() => setCurrentTab('my_profile')} 
+              className={`flex-1 sm:flex-none text-[10px] sm:text-xs font-bold px-2 sm:px-4 py-1 sm:py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${currentTab === 'my_profile' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/10' : 'text-gray-400 hover:text-white border border-transparent'}`}
+            >
+              🎯 Мої прогнози
+              {predictedMatches.length > 0 && (
+                <span className="bg-emerald-500 text-gray-950 font-black text-[9px] px-1 rounded-md min-w-[14px] h-[14px] flex items-center justify-center">
+                  {predictedMatches.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Права частина: Логін користувача та повноцінна текстова кнопка Вийти */}
+          <div className="flex items-center justify-end gap-1 sm:gap-3 flex-shrink-0">
+            <span onClick={() => setCurrentTab('my_profile')} className="text-[11px] sm:text-sm text-gray-400 bg-gray-900 px-2 sm:px-3 py-1.5 rounded-xl border border-gray-800 font-semibold cursor-pointer hover:border-gray-700 hover:text-white transition-colors max-w-[70px] sm:max-w-none truncate">
+              {session.user.email.split('@')[0]}
             </span>
             <button onClick={() => {
               localStorage.clear();
               supabase.auth.signOut();
-            }} className="rounded-xl bg-red-600/10 text-red-400 border border-red-500/20 px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold hover:bg-red-600 hover:text-white transition-all cursor-pointer active:scale-95">
+            }} className="rounded-xl bg-red-600/10 text-red-400 border border-red-500/20 px-2 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-sm font-semibold hover:bg-red-600 hover:text-white transition-all cursor-pointer active:scale-95">
               Вийти
             </button>
           </div>
         </header>
 
-        <main className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+        {/* ГОЛОВНИЙ КОНТЕНТ */}
+        <main className="max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-6 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           
-          {/* БЛОК МАТЧІВ — відстані зменшено через space-y-6 */}
-          <div className="lg:col-span-2 space-y-6 sm:space-y-8 order-2 lg:order-1">
-            {loading ? (
-              <div className="space-y-2">
-                <SkeletonCard /><SkeletonCard /><SkeletonCard />
-              </div>
-            ) : matches.length === 0 ? (
-              <div className="text-center text-gray-500 py-10 px-4 border border-dashed border-gray-800 rounded-2xl bg-gray-900/20 text-sm">
-                📌 Немає активних матчів.
-              </div>
-            ) : (
-              <div className="space-y-6 sm:space-y-8">
-                {/* ВЕРХНІЙ СПИСОК */}
-                <div className="flex flex-col gap-2">
-                  <AnimatePresence mode="popLayout">
-                    {unpredictedMatches.map((match) => (
-                      <motion.div
-                        key={match.id}
-                        layout="position"
-                        initial={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.25 } }}
-                        transition={{ type: "spring", stiffness: 350, damping: 32 }}
-                        whileHover={{ scale: 1.01, y: -1 }}
-                        className="w-full origin-center will-change-transform"
-                      >
-                        <MatchCard match={match} userPrediction={predictions[match.id]} onMakePrediction={handlePredict} />
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                  {unpredictedMatches.length === 0 && (
-                    <p className="text-xs text-gray-500 italic pl-4 py-1">🎉 Всі доступні прогнози заповнено!</p>
-                  )}
-                </div>
-
-                {/* СЕРЕДНІЙ СПИСОК */}
-                {predictedMatches.length > 0 && (
-                  <div className="pt-4 border-t border-gray-900/60">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-green-400 border-l-4 border-green-500 pl-3 mb-3">
-                      ✅ Прогнози зроблено ({predictedMatches.length})
+          {/* СЕКЦІЯ ЛІВОРУЧ */}
+          <div className="lg:col-span-2 order-2 lg:order-1">
+            <AnimatePresence mode="wait">
+              
+              {/* Вкладка 1: ЛІНІЯ МАТЧІВ */}
+              {currentTab === 'matches' && (
+                <motion.div
+                  key="matches_tab"
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 10 }}
+                  transition={{ duration: 0.15 }}
+                  className="space-y-3"
+                >
+                  <div className="flex items-center justify-between border-b border-gray-900 pb-1.5 mb-1">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-green-400 border-l-4 border-green-500 pl-2.5">
+                      🔥 Доступні матчі ({unpredictedMatches.length})
                     </h2>
+                  </div>
+
+                  {loading ? (
+                    <div className="space-y-2"><SkeletonCard /><SkeletonCard /></div>
+                  ) : unpredictedMatches.length === 0 ? (
+                    <div className="text-center text-gray-500 py-14 px-4 border border-dashed border-gray-800 rounded-2xl bg-gray-900/10 flex flex-col items-center justify-center gap-2">
+                      <span className="text-2xl">🎉</span>
+                      <p className="text-xs sm:text-sm font-medium text-gray-400">Ти заповнив абсолютно всі прогнози!</p>
+                      <button onClick={() => setCurrentTab('my_profile')} className="text-[11px] bg-green-500/10 border border-green-500/20 text-green-400 px-2.5 py-1.5 rounded-xl font-bold hover:bg-green-500 hover:text-white transition-all cursor-pointer">Перейти до моїх прогнозів →</button>
+                    </div>
+                  ) : (
                     <div className="flex flex-col gap-2">
                       <AnimatePresence mode="popLayout">
-                        {predictedMatches.map((match) => (
+                        {unpredictedMatches.map((match) => (
                           <motion.div
                             key={match.id}
                             layout="position"
-                            initial={{ opacity: 0.8 }}
-                            animate={{ opacity: 0.9 }}
-                            whileHover={{ scale: 1.005, opacity: 1 }}
+                            initial={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
                             transition={{ type: "spring", stiffness: 350, damping: 32 }}
+                            whileHover={{ scale: 1.01, y: -1 }}
                             className="w-full origin-center will-change-transform"
                           >
                             <MatchCard match={match} userPrediction={predictions[match.id]} onMakePrediction={handlePredict} />
@@ -278,29 +298,86 @@ export default function App() {
                         ))}
                       </AnimatePresence>
                     </div>
-                  </div>
-                )}
+                  )}
+                </motion.div>
+              )}
 
-                {/* НИЖНІЙ СПИСОК */}
-                {finishedMatches.length > 0 && (
-                  <div className="pt-4 border-t border-gray-900/60">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-red-400 border-l-4 border-red-500 pl-3 mb-3">
-                      🏁 Завершені матчі ({finishedMatches.length})
-                    </h2>
-                    <div className="flex flex-col gap-2 opacity-60">
-                      {finishedMatches.map((match) => (
-                        <div key={match.id} className="w-full">
-                          <MatchCard match={match} userPrediction={predictions[match.id]} onMakePrediction={handlePredict} isReadOnly={true} />
-                        </div>
-                      ))}
+              {/* Вкладка 2: МОЇ ПРОГНОЗИ (ПРОФІЛЬ) */}
+              {currentTab === 'my_profile' && (
+                <motion.div
+                  key="profile_tab"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.15 }}
+                  className="space-y-5 bg-gradient-to-b from-emerald-950/20 to-transparent p-3 sm:p-5 border border-emerald-900/10 rounded-2xl"
+                >
+                  <div className="bg-gradient-to-r from-emerald-900/30 to-teal-950/40 border border-emerald-500/10 p-3.5 rounded-xl shadow-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                      <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-900/40">Особистий кабінет</span>
+                      <h3 className="text-lg font-black text-white mt-1">👤 {session.user.email.split('@')[0]}</h3>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 w-full sm:w-auto text-center">
+                      <div className="bg-gray-950/60 border border-emerald-950 px-2 py-1 rounded-xl min-w-[65px]">
+                        <span className="text-[9px] font-bold text-gray-500 block uppercase">Матчів</span>
+                        <span className="text-xs font-black text-white">{currentUserStats?.total_predictions || 0}</span>
+                      </div>
+                      <div className="bg-gray-950/60 border border-emerald-950 px-2 py-1 rounded-xl min-w-[65px]">
+                        <span className="text-[9px] font-bold text-gray-500 block uppercase">Бали</span>
+                        <span className="text-xs font-black text-emerald-400">{currentUserStats?.total_points || 0}</span>
+                      </div>
+                      <div className="bg-gray-950/60 border border-emerald-950 px-2 py-1 rounded-xl min-w-[65px]">
+                        <span className="text-[9px] font-bold text-gray-500 block uppercase">Сума кф</span>
+                        <span className="text-xs font-black text-yellow-500">{Number(currentUserStats?.total_odds || 0).toFixed(2)}</span>
+                      </div>
                     </div>
                   </div>
-                )}
-              </div>
-            )}
+
+                  <div className="space-y-3">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-emerald-400 border-l-4 border-emerald-500 pl-2.5 mb-1">
+                      📋 Твої активні прогнози ({predictedMatches.length})
+                    </h2>
+                    
+                    {predictedMatches.length === 0 ? (
+                      <p className="text-xs text-gray-500 italic pl-3 py-2 border border-dashed border-gray-900 rounded-xl bg-gray-900/10 text-center">У тебе немає активних прогнозів. Зроби свій вибір у вкладці "Лінія".</p>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        <AnimatePresence mode="popLayout">
+                          {predictedMatches.map((match) => (
+                            <motion.div
+                              key={match.id}
+                              layout="position"
+                              whileHover={{ scale: 1.005 }}
+                              className="w-full origin-center"
+                            >
+                              <MatchCard match={match} userPrediction={predictions[match.id]} onMakePrediction={handlePredict} />
+                            </motion.div>
+                          ))}
+                        </AnimatePresence>
+                      </div>
+                    )}
+                  </div>
+
+                  {finishedMatches.length > 0 && (
+                    <div className="pt-4 border-t border-emerald-900/20">
+                      <h2 className="text-xs font-bold uppercase tracking-wider text-red-400 border-l-4 border-red-500 pl-2.5 mb-3">
+                        🏁 Твої завершені матчі ({finishedMatches.length})
+                      </h2>
+                      <div className="flex flex-col gap-2 opacity-70">
+                        {finishedMatches.map((match) => (
+                          <div key={match.id} className="w-full">
+                            <MatchCard match={match} userPrediction={predictions[match.id]} onMakePrediction={handlePredict} isReadOnly={true} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
-          {/* ПРАВА КОЛОНКА (ТАБЛИЦЯ ЛІДЕРІВ) */}
+          {/* СЕКЦІЯ ПРАВОРУЧ: ТАБЛИЦЯ ЛІДЕРІВ */}
           <div className="space-y-4 order-1 lg:order-2">
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 shadow-xl overflow-hidden">
               <h2 className="text-base font-black mb-3 tracking-tight text-gray-100 flex items-center gap-2">
@@ -321,7 +398,7 @@ export default function App() {
                       key={player.user_id} 
                       onClick={() => handleUserClick(player)}
                       className={`grid grid-cols-12 items-center text-xs p-1.5 rounded-xl transition-all text-center cursor-pointer hover:bg-gray-800/60 hover:scale-[1.01] active:scale-98
-                        ${player.user_id === session.user.id ? 'bg-green-500/5 border border-green-500/20' : 'border border-transparent'}`}
+                        ${player.user_id === session.user.id ? 'bg-green-500/5 border border-green-500/20 shadow-sm' : 'border border-transparent'}`}
                     >
                       <div className="col-span-5 flex items-center gap-1 truncate text-left">
                         <span className="text-[10px] font-bold text-gray-500 w-4">{index + 1}.</span>
@@ -341,7 +418,7 @@ export default function App() {
 
       {/* АДМІН-ПАНЕЛЬ */}
       {isAdmin && (
-        <footer className="w-full max-w-6xl mx-auto px-3 sm:px-4 pb-4 sm:pb-6 mt-6 order-3">
+        <footer className="w-full max-w-6xl mx-auto px-3 sm:px-4 pb-4 sm:pb-6 mt-4 order-3">
           <div className="bg-gray-900 border border-red-900/20 rounded-2xl p-4 shadow-xl max-w-xl mx-auto">
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-base">🛠️</span>
@@ -370,7 +447,7 @@ export default function App() {
         </footer>
       )}
 
-      {/* МОДАЛКА ПЕРЕГЛЯДУ */}
+      {/* МОДАЛКА ПЕРЕГЛЯДУ ГРАВЦІВ */}
       {selectedUser && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl p-4 relative">
