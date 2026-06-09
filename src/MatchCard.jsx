@@ -19,7 +19,8 @@ const worldCupFlags = {
   "Ukraine": "ua", "United States": "us", "Uruguay": "uy", "Wales": "gb-wls", "USA": "us"
 };
 
-const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false }) => {
+// 🚀 Додали пропс isCorrect = false
+const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false, isCorrect = false }) => {
   const { id, home_team, away_team, start_time, home_odds, draw_odds, away_odds, status, home_score, away_score } = match;
 
   const [timeLeft, setTimeLeft] = useState('');
@@ -72,32 +73,42 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
   return (
     <motion.div 
       layout="position"
-      className={`match-card ${isReadOnly ? 'readonly-mode' : ''}`}
+      /* 🚀 Додаємо динамічний клас correct-glow, якщо матч вгадано */
+      className={`match-card ${isReadOnly ? 'readonly-mode' : ''} ${isCorrect ? 'correct-glow' : ''}`}
     >
       <style>{`
         .match-card {
           max-width: 600px;
-          margin: 6px auto; /* Залишаємо компактну відстань між самими картками */
-          padding: 14px 18px; /* 🚀 ПОВЕРНУТО: комфортні відступи всередині (як було минулого разу) */
+          margin: 6px auto;
+          padding: 14px 18px;
           background: linear-gradient(145deg, #1e2538, #161b29);
           border-radius: 14px;
           border: 1px solid #2d3748;
           box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
-          transition: border-color 0.2s ease, box-shadow 0.2s ease;
+          transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
         }
         .match-card:hover {
           border-color: #4a5568;
           box-shadow: 0 10px 26px rgba(0, 0, 0, 0.38);
         }
+        
+        /* 🚀 ФІРМОВЕ ОДНОКОНТУРНЕ ПІДСВІЧУВАННЯ ДЛЯ УСПІШНО ВГАДАНОГО МАТЧУ */
+        .correct-glow {
+          border-color: rgba(34, 197, 94, 0.35) !important;
+          background: linear-gradient(145deg, #13241d, #111a18) !important;
+          box-shadow: 0 4px 15px rgba(34, 197, 94, 0.05) !important;
+          opacity: 1 !important; /* Робимо вгадані картки повністю соковитими */
+        }
+
         .readonly-mode {
-          opacity: 0.85;
+          opacity: 0.55; /* Трохи приглушуємо не вгадані завершені матчі */
           background: #151a24;
         }
         .match-header-row {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 12px; /* 🚀 Трохи збільшено повітря до команд */
+          margin-bottom: 12px;
           font-size: 11px;
           font-weight: 700;
           text-transform: uppercase;
@@ -121,7 +132,7 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
           align-items: center; 
           gap: 11px; 
           width: 100%; 
-          font-size: 15px; /* 🚀 ПОВЕРНУТО: великі читабельні назви команд */
+          font-size: 15px;
           font-weight: 700; 
           color: #ffffff;
         }
@@ -160,7 +171,7 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          padding: 9px 5px; /* 🚀 Трохи підросли тач-зони для кф */
+          padding: 9px 5px;
           background-color: #1e2638;
           border: 1px solid #2d3748;
           border-radius: 9px;
