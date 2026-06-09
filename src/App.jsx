@@ -358,17 +358,42 @@ export default function App() {
                     )}
                   </div>
 
+                  {/* 🏁 ЗОНА ЗАВЕРШЕНИХ МАТЧІВ З АВТО-ПІДРАХУНКОМ ТА ЗЕЛЕНИМ БЛІКОМ */}
                   {finishedMatches.length > 0 && (
                     <div className="pt-4 border-t border-emerald-900/20">
                       <h2 className="text-xs font-bold uppercase tracking-wider text-red-400 border-l-4 border-red-500 pl-2.5 mb-3">
                         🏁 Твої завершені матчі ({finishedMatches.length})
                       </h2>
-                      <div className="flex flex-col gap-2 opacity-70">
-                        {finishedMatches.map((match) => (
-                          <div key={match.id} className="w-full">
-                            <MatchCard match={match} userPrediction={predictions[match.id]} onMakePrediction={handlePredict} isReadOnly={true} />
-                          </div>
-                        ))}
+                      <div className="flex flex-col gap-2">
+                        {finishedMatches.map((match) => {
+                          const userChoice = predictions[match.id];
+                          
+                          // Визначаємо точний математичний результат на клієнті
+                          let realResult = '';
+                          if (match.home_score > match.away_score) {
+                            realResult = '1';
+                          } else if (match.home_score < match.away_score) {
+                            realResult = '2';
+                          } else if (match.home_score !== null && match.away_score !== null) {
+                            realResult = 'X';
+                          }
+
+                          // Перевіряємо, чи вгадав гравець
+                          const isCorrect = userChoice && realResult === userChoice;
+
+                          return (
+                            <div 
+                              key={match.id} 
+                              className={`w-full rounded-2xl transition-all duration-300 ${
+                                isCorrect 
+                                  ? 'border border-green-500/30 bg-green-950/10 shadow-[0_0_14px_rgba(34,197,94,0.06)]' 
+                                  : 'opacity-50 border border-transparent'
+                              }`}
+                            >
+                              <MatchCard match={match} userPrediction={userChoice} onMakePrediction={handlePredict} isReadOnly={true} />
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
