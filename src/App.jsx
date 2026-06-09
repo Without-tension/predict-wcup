@@ -41,12 +41,12 @@ export default function App() {
   const [selectedUserPreds, setSelectedUserPreds] = useState({});
   const [loadingUserPreds, setLoadingUserPreds] = useState(false);
 
-  // Стейт для збереження часу останнього фонового успішного запиту
+  // ⏱️ Стейт для зберігання реального часу оновлення з бази даних
   const [lastSyncTime, setLastSyncTime] = useState(() => {
     const savedTime = localStorage.getItem('cache_last_sync');
-    return savedTime ? new Date(savedTime) : new Date();
+    return savedTime ? new Date(savedTime) : null;
   });
-  const [timeSinceSync, setTimeSinceSync] = useState('');
+  const [timeSinceSync, setTimeSinceSync] = useState('завантаження...');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -68,8 +68,10 @@ export default function App() {
     }
   }, [session]);
 
-  // Live-таймер відліку часу від останнього оновлення даних
+  // ⏱️ Ефект живого відліку часу
   useEffect(() => {
+    if (!lastSyncTime) return;
+
     const updateTimer = () => {
       const now = new Date();
       const diffMs = now - lastSyncTime;
@@ -84,16 +86,16 @@ export default function App() {
       const displayMins = diffMins % 60;
 
       if (diffHours > 0) {
-        setTimeSinceSync(`${diffHours} год. ${displayMins} хв. тому`);
+        setTimeSinceSync(`${diffHours} год. ${displayMins} : ${String(Math.floor((diffMs % 60000) / 1000)).padStart(2, '0')} хв. тому`);
       } else if (displayMins > 0) {
         setTimeSinceSync(`${displayMins} хв. тому`);
       } else {
-        setTimeSinceSync('щойно оновлено');
+        setTimeSinceSync('менше хвилини тому');
       }
     };
 
     updateTimer();
-    const interval = setInterval(updateTimer, 30000); // Оновлюємо кожні 30 секунд
+    const interval = setInterval(updateTimer, 10000); // Оновлюємо кожні 10 секунд
     return () => clearInterval(interval);
   }, [lastSyncTime]);
 
@@ -104,9 +106,21 @@ export default function App() {
         .from('matches')
         .select('*')
         .order('start_time', { ascending: true });
-      if (matchesData) {
+      
+      if (matchesData && matchesData.length > 0) {
         setMatches(matchesData);
         localStorage.setItem('cache_matches', JSON.stringify(matchesData));
+
+        // ⏱️ ШУКАЄМО НАЙСВІЖІШИЙ ЧАС ОНОВЛЕННЯ ЗАПИСУ З БАЗИ ДАНИХ (Updated_at або Created_at)
+        const times = matchesData
+          .map(m => m.updated_at ? new Date(m.updated_at) : (m.created_at ? new Date(m.created_at) : null))
+          .filter(t => t !== null);
+        
+        if (times.length > 0) {
+          const maxTime = new Date(Math.max(...times));
+          setLastSyncTime(maxTime);
+          localStorage.setItem('cache_last_sync', maxTime.toISOString());
+        }
       }
 
       const { data: predsData } = await supabase
@@ -129,14 +143,10 @@ export default function App() {
         localStorage.setItem('cache_leaderboard', JSON.stringify(leaderData));
       }
 
-      // Записуємо точний час успішного отримання свіжих котирувань
-      const syncNow = new Date();
-      setLastSyncTime(syncNow);
-      localStorage.setItem('cache_last_sync', syncNow.toISOString());
-
     } catch (error) {
       console.error("Помилка фонового оновлення даних:", error.message);
     }
+    disabledLoading();
     setLoading(false);
   };
 
@@ -264,7 +274,7 @@ export default function App() {
               onClick={() => setCurrentTab('my_profile')} 
               className={`flex-1 sm:flex-none text-[10px] sm:text-xs font-bold px-2 sm:px-4 py-1 sm:py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${currentTab === 'my_profile' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/10' : 'text-gray-400 hover:text-white border border-transparent'}`}
             >
-              🎯 Мої
+              🎯 Мої прогнози
               {predictedMatches.length > 0 && (
                 <span className="bg-emerald-500 text-gray-950 font-black text-[9px] px-1 rounded-md min-w-[14px] h-[14px] flex items-center justify-center">
                   {predictedMatches.length}
@@ -288,7 +298,6 @@ export default function App() {
 
         {/* ГОЛОВНИЙ КОНТЕНТ */}
         <main className="max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-6 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-          
           <div className="lg:col-span-2 order-2 lg:order-1">
             <AnimatePresence mode="wait">
               
@@ -371,7 +380,7 @@ export default function App() {
 
                   <div className="space-y-3">
                     <h2 className="text-xs font-bold uppercase tracking-wider text-emerald-400 border-l-4 border-emerald-500 pl-2.5 mb-1">
-                      📋 Твої active прогнози ({predictedMatches.length})
+                      📋 Твої активні прогнози ({predictedMatches.length})
                     </h2>
                     
                     {predictedMatches.length === 0 ? (
@@ -389,7 +398,6 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* СЕКЦІЯ ЗАВЕРШЕНИХ МАТЧІВ — ТЕПЕР ЧИСТА, БЕЗ ПОДВІЙНИХ РАМОК */}
                   {finishedMatches.length > 0 && (
                     <div className="pt-4 border-t border-emerald-900/20">
                       <h2 className="text-xs font-bold uppercase tracking-wider text-red-400 border-l-4 border-red-500 pl-2.5 mb-3">
@@ -408,7 +416,6 @@ export default function App() {
 
                           return (
                             <div key={match.id} className="w-full">
-                              {/* Передаємо прапорець isCorrect всередину картки */}
                               <MatchCard 
                                 match={match} 
                                 userPrediction={userChoice} 
@@ -465,7 +472,7 @@ export default function App() {
           <div className="bg-gray-900 border border-red-900/20 rounded-2xl p-4 shadow-xl max-w-xl mx-auto">
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-base">🛠️</span>
-              <h3 className="text-xs font-black text-red-400 uppercase tracking-widest">Панель Адміністратора</h3>
+              <h3 className="text-xs font-black text-red-400 uppercase tracking-widest">Панель Admin</h3>
             </div>
             <form onSubmit={handleAdminResetPassword} className="flex flex-col gap-2.5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -478,9 +485,9 @@ export default function App() {
         </footer>
       )}
 
-      {/* ⏱️ ПОВЕРНУТО: МІНІМАЛІСТИЧНИЙ ЖИВИЙ ТАЙМЕР ОНОВЛЕННЯ КОЕФІЦІЄНТІВ */}
-      <div className="w-full text-center pb-4 pt-2 order-4 flex items-center justify-center gap-1.5 select-none animate-pulse">
-        <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500"></span>
+      {/* ⏱️ РЕАЛЬНИЙ ЖИВИЙ ТАЙМЕР ВІДЛІКУ ВІД БАЗИ ДАНИХ */}
+      <div className="w-full text-center pb-4 pt-2 order-4 flex items-center justify-center gap-1.5 select-none">
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
         <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
           коефіцієнти було оновлено: <span className="text-gray-400 font-bold lowercase">{timeSinceSync}</span>
         </p>
