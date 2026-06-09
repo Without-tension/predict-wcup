@@ -8,8 +8,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 export default function App() {
   const [session, setSession] = useState(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
-
-  // Стейт для перемикання вкладок: 'matches' або 'my_profile'
   const [currentTab, setCurrentTab] = useState('matches');
 
   // Стейти для admin-панелі
@@ -41,7 +39,7 @@ export default function App() {
   const [selectedUserPreds, setSelectedUserPreds] = useState({});
   const [loadingUserPreds, setLoadingUserPreds] = useState(false);
 
-  // ⏱️ Стейт для зберігання реального часу оновлення з бази даних
+  // ⏱️ СЕКУНДОМІР: Стейт для зберігання часу синхронізації бота
   const [lastSyncTime, setLastSyncTime] = useState(() => {
     const savedTime = localStorage.getItem('cache_last_sync');
     return savedTime ? new Date(savedTime) : null;
@@ -68,7 +66,7 @@ export default function App() {
     }
   }, [session]);
 
-  // ⏱️ Ефект живого відліку часу
+  // ⏱️ СЕКУНДОМІР: Живий відлік кожну секунду (Години : Хвилини : Секунди)
   useEffect(() => {
     if (!lastSyncTime) return;
 
@@ -77,25 +75,22 @@ export default function App() {
       const diffMs = now - lastSyncTime;
       
       if (diffMs < 0) {
-        setTimeSinceSync('щойно');
+        setTimeSinceSync('00:00:00 тому');
         return;
       }
 
-      const diffMins = Math.floor(diffMs / 60000);
-      const diffHours = Math.floor(diffMins / 60);
-      const displayMins = diffMins % 60;
+      const diffSecs = Math.floor(diffMs / 1000);
+      const hours = Math.floor(diffSecs / 3600);
+      const minutes = Math.floor((diffSecs % 3600) / 60);
+      const seconds = diffSecs % 60;
 
-      if (diffHours > 0) {
-        setTimeSinceSync(`${diffHours} год. ${displayMins} : ${String(Math.floor((diffMs % 60000) / 1000)).padStart(2, '0')} хв. тому`);
-      } else if (displayMins > 0) {
-        setTimeSinceSync(`${displayMins} хв. тому`);
-      } else {
-        setTimeSinceSync('менше хвилини тому');
-      }
+      // Форматуємо у красивий вигляд 02:05:14 тому
+      const formattedTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      setTimeSinceSync(`${formattedTime} тому`);
     };
 
     updateTimer();
-    const interval = setInterval(updateTimer, 10000); // Оновлюємо кожні 10 секунд
+    const interval = setInterval(updateTimer, 1000); // Оновлюємо кожну секунду!
     return () => clearInterval(interval);
   }, [lastSyncTime]);
 
@@ -106,21 +101,22 @@ export default function App() {
         .from('matches')
         .select('*')
         .order('start_time', { ascending: true });
-      
-      if (matchesData && matchesData.length > 0) {
+      if (matchesData) {
         setMatches(matchesData);
         localStorage.setItem('cache_matches', JSON.stringify(matchesData));
+      }
 
-        // ⏱️ ШУКАЄМО НАЙСВІЖІШИЙ ЧАС ОНОВЛЕННЯ ЗАПИСУ З БАЗИ ДАНИХ (Updated_at або Created_at)
-        const times = matchesData
-          .map(m => m.updated_at ? new Date(m.updated_at) : (m.created_at ? new Date(m.created_at) : null))
-          .filter(t => t !== null);
-        
-        if (times.length > 0) {
-          const maxTime = new Date(Math.max(...times));
-          setLastSyncTime(maxTime);
-          localStorage.setItem('cache_last_sync', maxTime.toISOString());
-        }
+      // ⏱️ СЕКУНДОМІР: Запитуємо точний час останнього запуску бота з нашої нової таблички
+      const { data: syncData } = await supabase
+        .from('system_status')
+        .select('last_sync')
+        .eq('id', 1)
+        .single();
+      
+      if (syncData?.last_sync) {
+        const dbTime = new Date(syncData.last_sync);
+        setLastSyncTime(dbTime);
+        localStorage.setItem('cache_last_sync', dbTime.toISOString());
       }
 
       const { data: predsData } = await supabase
@@ -146,7 +142,6 @@ export default function App() {
     } catch (error) {
       console.error("Помилка фонового оновлення даних:", error.message);
     }
-    disabledLoading();
     setLoading(false);
   };
 
@@ -303,14 +298,7 @@ export default function App() {
               
               {/* Вкладка 1: ЛІНІЯ МАТЧІВ */}
               {currentTab === 'matches' && (
-                <motion.div
-                  key="matches_tab"
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 10 }}
-                  transition={{ duration: 0.15 }}
-                  className="space-y-3"
-                >
+                <motion.div key="matches_tab" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={{ duration: 0.15 }} className="space-y-3">
                   <div className="flex items-center justify-between border-b border-gray-900 pb-1.5 mb-1">
                     <h2 className="text-xs font-bold uppercase tracking-wider text-green-400 border-l-4 border-green-500 pl-2.5">
                       🔥 Доступні матчі ({unpredictedMatches.length})
@@ -329,15 +317,7 @@ export default function App() {
                     <div className="flex flex-col gap-2">
                       <AnimatePresence mode="popLayout">
                         {unpredictedMatches.map((match) => (
-                          <motion.div
-                            key={match.id}
-                            layout="position"
-                            initial={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
-                            transition={{ type: "spring", stiffness: 350, damping: 32 }}
-                            whileHover={{ scale: 1.01, y: -1 }}
-                            className="w-full origin-center will-change-transform"
-                          >
+                          <motion.div key={match.id} layout="position" initial={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }} transition={{ type: "spring", stiffness: 350, damping: 32 }} whileHover={{ scale: 1.01, y: -1 }} className="w-full origin-center will-change-transform">
                             <MatchCard match={match} userPrediction={predictions[match.id]} onMakePrediction={handlePredict} />
                           </motion.div>
                         ))}
@@ -349,14 +329,7 @@ export default function App() {
 
               {/* Вкладка 2: МОЇ ПРОГНОЗИ */}
               {currentTab === 'my_profile' && (
-                <motion.div
-                  key="profile_tab"
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  transition={{ duration: 0.15 }}
-                  className="space-y-5 bg-gradient-to-b from-emerald-950/20 to-transparent p-3 sm:p-5 border border-emerald-900/10 rounded-2xl"
-                >
+                <motion.div key="profile_tab" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} transition={{ duration: 0.15 }} className="space-y-5 bg-gradient-to-b from-emerald-950/20 to-transparent p-3 sm:p-5 border border-emerald-900/10 rounded-2xl">
                   <div className="bg-gradient-to-r from-emerald-900/30 to-teal-950/40 border border-emerald-500/10 p-3.5 rounded-xl shadow-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
                       <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-900/40">Особистий кабінет</span>
@@ -382,7 +355,6 @@ export default function App() {
                     <h2 className="text-xs font-bold uppercase tracking-wider text-emerald-400 border-l-4 border-emerald-500 pl-2.5 mb-1">
                       📋 Твої активні прогнози ({predictedMatches.length})
                     </h2>
-                    
                     {predictedMatches.length === 0 ? (
                       <p className="text-xs text-gray-500 italic pl-3 py-2 border border-dashed border-gray-900 rounded-xl bg-gray-900/10 text-center">У тебе немає активних прогнозів.</p>
                     ) : (
@@ -406,7 +378,6 @@ export default function App() {
                       <div className="flex flex-col gap-2">
                         {finishedMatches.map((match) => {
                           const userChoice = predictions[match.id];
-                          
                           let realResult = '';
                           if (match.home_score > match.away_score) realResult = '1';
                           else if (match.home_score < match.away_score) realResult = '2';
@@ -416,13 +387,7 @@ export default function App() {
 
                           return (
                             <div key={match.id} className="w-full">
-                              <MatchCard 
-                                match={match} 
-                                userPrediction={userChoice} 
-                                onMakePrediction={handlePredict} 
-                                isReadOnly={true} 
-                                isCorrect={isCorrect} 
-                              />
+                              <MatchCard match={match} userPrediction={userChoice} onMakePrediction={handlePredict} isReadOnly={true} isCorrect={isCorrect} />
                             </div>
                           );
                         })}
@@ -472,7 +437,7 @@ export default function App() {
           <div className="bg-gray-900 border border-red-900/20 rounded-2xl p-4 shadow-xl max-w-xl mx-auto">
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-base">🛠️</span>
-              <h3 className="text-xs font-black text-red-400 uppercase tracking-widest">Панель Admin</h3>
+              <h3 className="text-xs font-black text-red-400 uppercase tracking-widest">Панель Адміністратора</h3>
             </div>
             <form onSubmit={handleAdminResetPassword} className="flex flex-col gap-2.5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -485,11 +450,11 @@ export default function App() {
         </footer>
       )}
 
-      {/* ⏱️ РЕАЛЬНИЙ ЖИВИЙ ТАЙМЕР ВІДЛІКУ ВІД БАЗИ ДАНИХ */}
+      {/* ⏱️ СПРАВЖНІЙ СЕКУНДОМІР: Показує Години:Хвилини:Секунди від моменту роботи бота */}
       <div className="w-full text-center pb-4 pt-2 order-4 flex items-center justify-center gap-1.5 select-none">
         <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
         <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
-          коефіцієнти було оновлено: <span className="text-gray-400 font-bold lowercase">{timeSinceSync}</span>
+          коефіцієнти було оновлено: <span className="text-gray-400 font-black tracking-widest bg-gray-900/60 px-2 py-1 rounded-md border border-gray-850 ml-1">{timeSinceSync}</span>
         </p>
       </div>
     </div>

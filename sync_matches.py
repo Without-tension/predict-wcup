@@ -345,3 +345,11 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# Наприкінці скрипта, після успішного оновлення всіх коефіцієнтів:
+try:
+    supabase.table("system_status").upsert({"id": 1, "last_sync": "now()"}).execute()
+    print("⏰ Час останньої синхронізації успішно оновлено в базі!")
+except Exception as e:
+    print(f"Не вдалося оновити таймер у базі: {e}")
