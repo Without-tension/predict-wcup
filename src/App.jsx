@@ -450,14 +450,6 @@ export default function App() {
         </footer>
       )}
 
-      {/* ⏱️ СПРАВЖНІЙ СЕКУНДОМІР */}
-      <div className="w-full text-center pb-4 pt-2 order-4 flex items-center justify-center gap-1.5 select-none">
-        <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-        <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
-          коефіцієнти було оновлено: <span className="text-gray-400 font-black tracking-widest bg-gray-900/60 px-2 py-1 rounded-md border border-gray-850 ml-1">{timeSinceSync}</span>
-        </p>
-      </div>
-
       {/* 👑 КРИТИЧНО НЕОБХІДНА МОДАЛКА ПЕРЕГЛЯДУ ГРАВЦІВ */}
       {selectedUser && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
