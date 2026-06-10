@@ -194,7 +194,7 @@ SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").stri
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 THE_ODDS_API_KEY = "0e12fe136a3131cc54933f95157b3b69"
-SPORTS_KEYS = ["soccer_fifa_world_cup", "soccer_brazil_serie_b"]
+SPORTS_KEYS = ["soccer_fifa_world_cup"]
 
 def generate_stable_id(api_id_str):
     return int(hashlib.md5(api_id_str.encode('utf-8')).hexdigest(), 16) % 1000000
