@@ -75,7 +75,7 @@ export default function App() {
       const diffMs = now - lastSyncTime;
       
       if (diffMs < 0) {
-        setTimeSinceSync('00:00:00 тому');
+        setTimeSinceSync('00:00:00');
         return;
       }
 
@@ -450,13 +450,62 @@ export default function App() {
         </footer>
       )}
 
-      {/* ⏱️ СПРАВЖНІЙ СЕКУНДОМІР: Показує Години:Хвилини:Секунди від моменту роботи бота */}
+      {/* ⏱️ СПРАВЖНІЙ СЕКУНДОМІР */}
       <div className="w-full text-center pb-4 pt-2 order-4 flex items-center justify-center gap-1.5 select-none">
         <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
         <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
           коефіцієнти було оновлено: <span className="text-gray-400 font-black tracking-widest bg-gray-900/60 px-2 py-1 rounded-md border border-gray-850 ml-1">{timeSinceSync}</span>
         </p>
       </div>
+
+      {/* 👑 КРИТИЧНО НЕОБХІДНА МОДАЛКА ПЕРЕГЛЯДУ ГРАВЦІВ */}
+      {selectedUser && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl p-4 relative">
+            <button onClick={() => setSelectedUser(null)} className="absolute top-3 right-3 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white w-7 h-7 rounded-full flex items-center justify-center transition-colors cursor-pointer text-sm">✕</button>
+            
+            <div className="mb-4 flex-shrink-0">
+              <p className="text-[10px] font-bold text-green-400 uppercase tracking-widest">Профіль гравця</p>
+              <h3 className="text-xl font-black text-white mt-0.5">{selectedUser.user_email.split('@')[0]}</h3>
+              <div className="grid grid-cols-3 gap-2 mt-2.5 text-center text-xs text-gray-400 bg-gray-950/60 p-2 rounded-xl border border-gray-850">
+                <div>Матчів: <span className="text-white font-bold block">{selectedUser.total_predictions}</span></div>
+                <div>Бали: <span className="text-green-400 font-bold block">{selectedUser.total_points}</span></div>
+                <div>Сума кф: <span className="text-yellow-500 font-bold block">{Number(selectedUser.total_odds).toFixed(2)}</span></div>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-0.5 min-h-0">
+              <h4 className="text-xs font-bold text-gray-400 border-b border-gray-800 pb-1.5 mb-2.5 sticky top-0 bg-gray-900 z-10">Прогнози гравця:</h4>
+              <div className="space-y-2">
+                {matches.map((match) => {
+                  const playerChoice = selectedUserPreds[match.id];
+                  if (!playerChoice) return null; // Якщо гравець не ставив на цей матч — пропускаємо
+
+                  // Розраховуємо перемогу саме для обраного гравця
+                  let realResult = '';
+                  if (match.home_score > match.away_score) realResult = '1';
+                  else if (match.home_score < match.away_score) realResult = '2';
+                  else if (match.home_score !== null && match.away_score !== null) realResult = 'X';
+
+                  const isPlayerCorrect = realResult === playerChoice;
+
+                  return (
+                    <div key={match.id} className="w-full">
+                      <MatchCard 
+                        match={match} 
+                        userPrediction={playerChoice} 
+                        onMakePrediction={handlePredict} 
+                        isReadOnly={true} 
+                        isCorrect={match.status === 'finished' ? isPlayerCorrect : false} 
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
