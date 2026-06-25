@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const worldCupFlags = {
   "Bosnia & Herzegovina": "ba", "Haiti": "ht", "Turkey": "tr", "Curaçao": "cw",
@@ -25,6 +25,9 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
 
   const [timeLeft, setTimeLeft] = useState('');
   const [isLiveOrPast, setIsLiveOrPast] = useState(false);
+
+  // 🏆 АВТО-ВИЗНАЧЕННЯ СТАДІЇ: 28.06.2026 22:00 Києва — це рівно 19:00:00 за UTC (Z)
+  const isPlayoff = new Date(start_time) >= new Date('2026-06-28T19:00:00Z');
 
   useEffect(() => {
     if (status === 'finished') {
@@ -69,6 +72,24 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
 
   const isButtonDisabled = status === 'finished' || isLiveOrPast || isReadOnly;
   const shouldHidePrediction = isReadOnly && !isLiveOrPast && status !== 'finished';
+
+  // Розбираємо збережене комбіноване значення (наприклад, "X-1" розіб'ється на "X" і "1")
+  const mainChoice = userPrediction ? userPrediction.split('-')[0] : null;
+  const passageChoice = userPrediction && userPrediction.includes('-') ? userPrediction.split('-')[1] : null;
+
+  const handleMainClick = (choice) => {
+    if (isPlayoff && choice === 'X') {
+      // Якщо в кубковому матчі обрано Нічию, записуємо базовий Х, очікуючи вибору проходу
+      onMakePrediction(id, 'X');
+    } else {
+      onMakePrediction(id, choice);
+    }
+  };
+
+  const handlePassageClick = (teamPassage) => {
+    // Зберігаємо вибір проходу у форматі "X-1" (нічия + прохід перших) або "X-2" (нічия + прохід других)
+    onMakePrediction(id, `X-${teamPassage}`);
+  };
 
   return (
     <motion.div 
@@ -212,6 +233,44 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
           text-align: center;
         }
 
+        /* 🏆 ЕКСКЛЮЗИВНІ КУБКОВІ СТИЛІ ДЛЯ ПРОХОДУ ДАЛІ */
+        .playoff-passage-box {
+          width: 100%;
+          display: flex;
+          gap: 8px;
+          margin-top: 10px;
+          padding-top: 10px;
+          border-top: 1px dashed #2d3748;
+          justify-content: center;
+        }
+        .playoff-passage-btn {
+          flex: 1;
+          padding: 7px 5px;
+          font-size: 11px;
+          font-weight: 800;
+          border-radius: 8px;
+          border: 1px solid #10b981;
+          background: rgba(16, 185, 129, 0.03);
+          color: #10b981;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+        }
+        .playoff-passage-btn:hover:not(:disabled) {
+          background: #10b981;
+          color: #111622;
+        }
+        .playoff-passage-btn.active {
+          background: #10b981 !important;
+          color: #111622 !important;
+          box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+        }
+        .playoff-passage-btn:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+
         @media (min-width: 500px) {
           .match-main-row { 
             flex-direction: row; 
@@ -252,8 +311,8 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
           <div className="odds-container">
             <button 
               disabled={isButtonDisabled}
-              className={`odds-btn ${userPrediction === '1' ? 'selected' : ''}`}
-              onClick={() => onMakePrediction(id, '1')}
+              className={`odds-btn ${mainChoice === '1' ? 'selected' : ''}`}
+              onClick={() => handleMainClick('1')}
             >
               <span className="odds-label">П1</span>
               <span className="odds-num">{home_odds?.toFixed(2) || '—'}</span>
@@ -261,8 +320,8 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
 
             <button 
               disabled={isButtonDisabled}
-              className={`odds-btn ${userPrediction === 'X' ? 'selected' : ''}`}
-              onClick={() => onMakePrediction(id, 'X')}
+              className={`odds-btn ${mainChoice === 'X' ? 'selected' : ''}`}
+              onClick={() => handleMainClick('X')}
             >
               <span className="odds-label">X</span>
               <span className="odds-num">{draw_odds?.toFixed(2) || '—'}</span>
@@ -270,8 +329,8 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
 
             <button 
               disabled={isButtonDisabled}
-              className={`odds-btn ${userPrediction === '2' ? 'selected' : ''}`}
-              onClick={() => onMakePrediction(id, '2')}
+              className={`odds-btn ${mainChoice === '2' ? 'selected' : ''}`}
+              onClick={() => handleMainClick('2')}
             >
               <span className="odds-label">П2</span>
               <span className="odds-num">{away_odds?.toFixed(2) || '—'}</span>
@@ -284,6 +343,33 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
           {renderFlag(away_team)}
         </div>
       </div>
+
+      {/* 🏆 ДИНАМІЧНИЙ БЛОК ДЛЯ СТАДІЇ ПЛЕЙ-ОФФ (Показується тільки якщо обрано Нічию Х) */}
+      <AnimatePresence>
+        {isPlayoff && mainChoice === 'X' && !shouldHidePrediction && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="playoff-passage-box"
+          >
+            <button
+              disabled={isButtonDisabled}
+              className={`playoff-passage-btn ${passageChoice === '1' ? 'active' : ''}`}
+              onClick={() => handlePassageClick('1')}
+            >
+              🏅 Прохід {home_team}
+            </button>
+            <button
+              disabled={isButtonDisabled}
+              className={`playoff-passage-btn ${passageChoice === '2' ? 'active' : ''}`}
+              onClick={() => handlePassageClick('2')}
+            >
+              🏅 Прохід {away_team}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };

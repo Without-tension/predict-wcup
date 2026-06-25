@@ -68,9 +68,12 @@ export default function App() {
 
   // ⏱️ СЕКУНДОМІР: Живий відлік кожну секунду (Години : Хвилини : Секунди)
   useEffect(() => {
-    if (!lastSyncTime) return;
-
     const updateTimer = () => {
+      if (!lastSyncTime) {
+        setTimeSinceSync('немає даних (оновлення 09:09 та 18:04)');
+        return;
+      }
+
       const now = new Date();
       const diffMs = now - lastSyncTime;
       
@@ -84,13 +87,12 @@ export default function App() {
       const minutes = Math.floor((diffSecs % 3600) / 60);
       const seconds = diffSecs % 60;
 
-      // Форматуємо у красивий вигляд 02:05:14 тому
       const formattedTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
       setTimeSinceSync(`${formattedTime} тому`);
     };
 
     updateTimer();
-    const interval = setInterval(updateTimer, 1000); // Оновлюємо кожну секунду!
+    const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
   }, [lastSyncTime]);
 
@@ -294,6 +296,21 @@ export default function App() {
         {/* ГОЛОВНИЙ КОНТЕНТ */}
         <main className="max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-6 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           <div className="lg:col-span-2 order-2 lg:order-1">
+            
+            {/* 📢 ДИСКЛЕЙМЕР З ОБНОВЛЕНИМИ ПРАВИЛАМИ ПЛЕЙ-ОФФ */}
+            {currentTab === 'matches' && (
+              <div className="mb-4 bg-gradient-to-r from-amber-500/10 to-orange-600/10 border border-amber-500/20 rounded-2xl p-3.5 shadow-md">
+                <div className="flex items-center gap-2 text-amber-400 font-black text-xs uppercase tracking-wider mb-1.5">
+                  <span>⚡</span> Регламент стадії Плей-Офф (з 28.06 22:00)
+                </div>
+                <ul className="text-xs text-gray-300 space-y-1 list-disc list-inside">
+                  <li>За вгадану чисту перемогу в основний час (<span className="text-white font-bold">П1</span> або <span className="text-white font-bold">П2</span>) нараховується <span className="text-green-400 font-black">2 бали</span>.</li>
+                  <li>Якщо обираєш <span className="text-amber-400 font-bold">Нічию (Х)</span>, відкриються кнопки кубкового проходу.</li>
+                  <li>Вгадана нічия по закінченню 90 хв принесе <span className="text-green-400 font-semibold">1 бал</span> + ще <span className="text-green-400 font-semibold">1 бал</span>, якщо вірно вгадано команду, яка пройде далі в наступний раунд!</li>
+                </ul>
+              </div>
+            )}
+
             <AnimatePresence mode="wait">
               
               {/* Вкладка 1: ЛІНІЯ МАТЧІВ */}
@@ -377,17 +394,31 @@ export default function App() {
                       </h2>
                       <div className="flex flex-col gap-2">
                         {finishedMatches.map((match) => {
-                          const userChoice = predictions[match.id];
+                          const userChoiceRaw = predictions[match.id] || '';
+                          const userMainChoice = userChoiceRaw.split('-')[0];
+
                           let realResult = '';
                           if (match.home_score > match.away_score) realResult = '1';
                           else if (match.home_score < match.away_score) realResult = '2';
                           else if (match.home_score !== null && match.away_score !== null) realResult = 'X';
 
-                          const isCorrect = userChoice && realResult === userChoice;
+                          // Перевірка стадії плей-офф
+                          const isPlayoffMatch = new Date(match.start_time) >= new Date('2026-06-28T19:00:00Z');
+                          let isCorrect = false;
+
+                          if (!isPlayoffMatch) {
+                            isCorrect = userMainChoice && realResult === userMainChoice;
+                          } else {
+                            if (realResult === '1' || realResult === '2') {
+                              isCorrect = userMainChoice === realResult;
+                            } else if (realResult === 'X') {
+                              isCorrect = userMainChoice === 'X';
+                            }
+                          }
 
                           return (
                             <div key={match.id} className="w-full">
-                              <MatchCard match={match} userPrediction={userChoice} onMakePrediction={handlePredict} isReadOnly={true} isCorrect={isCorrect} />
+                              <MatchCard match={match} userPrediction={userChoiceRaw} onMakePrediction={handlePredict} isReadOnly={true} isCorrect={isCorrect} />
                             </div>
                           );
                         })}
@@ -450,7 +481,15 @@ export default function App() {
         </footer>
       )}
 
-      {/* 👑 КРИТИЧНО НЕОБХІДНА МОДАЛКА ПЕРЕГЛЯДУ ГРАВЦІВ */}
+      {/* ⏱️ СПРАВЖНІЙ СЕКУНДОМІР */}
+      <div className="w-full text-center pb-4 pt-2 order-4 flex items-center justify-center gap-1.5 select-none">
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+        <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+          коефіцієнти було оновлено: <span className="text-gray-400 font-black tracking-widest bg-gray-900/60 px-2 py-1 rounded-md border border-gray-850 ml-1">{timeSinceSync}</span>
+        </p>
+      </div>
+
+      {/* 👑 МОДАЛКА ПЕРЕГЛЯДУ ГРАВЦІВ */}
       {selectedUser && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl p-4 relative">
@@ -470,25 +509,26 @@ export default function App() {
               <h4 className="text-xs font-bold text-gray-400 border-b border-gray-800 pb-1.5 mb-2.5 sticky top-0 bg-gray-900 z-10">Прогнози гравця:</h4>
               <div className="space-y-2">
                 {matches.map((match) => {
-                  const playerChoice = selectedUserPreds[match.id];
-                  if (!playerChoice) return null; // Якщо гравець не ставив на цей матч — пропускаємо
+                  const playerChoiceRaw = selectedUserPreds[match.id];
+                  if (!playerChoiceRaw) return null;
 
-                  // Розраховуємо перемогу саме для обраного гравця
+                  const playerMainChoice = playerChoiceRaw.split('-')[0];
+
                   let realResult = '';
                   if (match.home_score > match.away_score) realResult = '1';
                   else if (match.home_score < match.away_score) realResult = '2';
                   else if (match.home_score !== null && match.away_score !== null) realResult = 'X';
 
-                  const isPlayerCorrect = realResult === playerChoice;
+                  const isPlayerCorrect = match.status === 'finished' && (playerMainChoice === realResult);
 
                   return (
                     <div key={match.id} className="w-full">
                       <MatchCard 
                         match={match} 
-                        userPrediction={playerChoice} 
+                        userPrediction={playerChoiceRaw} 
                         onMakePrediction={handlePredict} 
                         isReadOnly={true} 
-                        isCorrect={match.status === 'finished' ? isPlayerCorrect : false} 
+                        isCorrect={isPlayerCorrect} 
                       />
                     </div>
                   );
