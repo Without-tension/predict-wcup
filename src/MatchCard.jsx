@@ -73,22 +73,33 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
   const isButtonDisabled = status === 'finished' || isLiveOrPast || isReadOnly;
   const shouldHidePrediction = isReadOnly && !isLiveOrPast && status !== 'finished';
 
-  // Розбираємо збережене комбіноване значення (наприклад, "X-1" розіб'ється на "X" і "1")
-  const mainChoice = userPrediction ? userPrediction.split('-')[0] : null;
-  const passageChoice = userPrediction && userPrediction.includes('-') ? userPrediction.split('-')[1] : null;
+  // 🎯 НОВА ЧИСТА СТРУКТУРА: Отримуємо дані з об'єкта чи рядка сумісності
+  let mainChoice = null;
+  let passageChoice = null;
+
+  if (userPrediction) {
+    if (typeof userPrediction === 'object') {
+      mainChoice = userPrediction.user_choice;
+      passageChoice = userPrediction.playoff_winner;
+    } else if (typeof userPrediction === 'string') {
+      mainChoice = userPrediction.split('-')[0];
+      passageChoice = userPrediction.split('-')[1] || null;
+    }
+  }
 
   const handleMainClick = (choice) => {
     if (isPlayoff && choice === 'X') {
-      // Якщо в кубковому матчі обрано Нічию, записуємо базовий Х, очікуючи вибору проходу
-      onMakePrediction(id, 'X');
+      // Передаємо чистий 'X' та null для проходу, чекаючи на вибір проходу користувачем
+      onMakePrediction(id, 'X', null);
     } else {
-      onMakePrediction(id, choice);
+      // Чиста перемога 1 або 2 — прохід null
+      onMakePrediction(id, choice, null);
     }
   };
 
   const handlePassageClick = (teamPassage) => {
-    // Зберігаємо вибір проходу у форматі "X-1" (нічия + прохід перших) або "X-2" (нічия + прохід других)
-    onMakePrediction(id, `X-${teamPassage}`);
+    // Фіксуємо основний вибір 'X' та передаємо переможця кубкової стадії '1' або '2' в окремий стовпчик
+    onMakePrediction(id, 'X', teamPassage);
   };
 
   return (

@@ -20,6 +20,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
   
+  // Тепер у predictions зберігатимемо об'єкт з полями: { user_choice, playoff_winner }
   const [predictions, setPredictions] = useState(() => {
     const saved = localStorage.getItem('cache_predictions');
     return saved ? JSON.parse(saved) : {};
@@ -66,7 +67,7 @@ export default function App() {
     }
   }, [session]);
 
-  // ⏱️ СЕКУНДОМІР: Живий відлік кожну секунду (Години : Хвилини : Секунди)
+  // ⏱️ СЕКУНДОМІР: Живий відлік кожну секунду
   useEffect(() => {
     const updateTimer = () => {
       if (!lastSyncTime) {
@@ -108,7 +109,6 @@ export default function App() {
         localStorage.setItem('cache_matches', JSON.stringify(matchesData));
       }
 
-      // ⏱️ СЕКУНДОМІР: Запитуємо точний час останнього запуску бота з нашої нової таблички
       const { data: syncData } = await supabase
         .from('system_status')
         .select('last_sync')
@@ -121,13 +121,19 @@ export default function App() {
         localStorage.setItem('cache_last_sync', dbTime.toISOString());
       }
 
+      // Запитуємо обидві колонки вибору
       const { data: predsData } = await supabase
         .from('predictions')
-        .select('match_id, user_choice')
+        .select('match_id, user_choice, playoff_winner')
         .eq('user_id', session.user.id);
 
       const predsMap = {};
-      predsData?.forEach(p => { predsMap[p.match_id] = p.user_choice; });
+      predsData?.forEach(p => { 
+        predsMap[p.match_id] = { 
+          user_choice: p.user_choice, 
+          playoff_winner: p.playoff_winner 
+        }; 
+      });
       setPredictions(predsMap);
       localStorage.setItem('cache_predictions', JSON.stringify(predsMap));
 
@@ -182,11 +188,16 @@ export default function App() {
     try {
       const { data: userPreds } = await supabase
         .from('predictions')
-        .select('match_id, user_choice')
+        .select('match_id, user_choice, playoff_winner')
         .eq('user_id', player.user_id);
       
       const map = {};
-      userPreds?.forEach(p => { map[p.match_id] = p.user_choice; });
+      userPreds?.forEach(p => { 
+        map[p.match_id] = { 
+          user_choice: p.user_choice, 
+          playoff_winner: p.playoff_winner 
+        }; 
+      });
       setSelectedUserPreds(map);
     } catch (e) {
       console.error(e);
@@ -194,14 +205,18 @@ export default function App() {
     setLoadingUserPreds(false);
   };
 
-  const handlePredict = async (matchId, choice) => {
+  // ⚡ МОДИФІКОВАНИЙ ХЕНДЛЕР: тепер приймає два чистих параметри з MatchCard
+  const handlePredict = async (matchId, choice, playoffWinner = null) => {
     const match = matches.find(m => m.id === matchId);
     if (!match || match.status === 'finished' || new Date() >= new Date(match.start_time)) {
       alert("Матч уже розпочався або завершився!");
       return;
     }
 
-    const updatedPredictions = { ...predictions, [matchId]: choice };
+    const updatedPredictions = { 
+      ...predictions, 
+      [matchId]: { user_choice: choice, playoff_winner: playoffWinner } 
+    };
     setPredictions(updatedPredictions);
     localStorage.setItem('cache_predictions', JSON.stringify(updatedPredictions));
 
@@ -209,7 +224,12 @@ export default function App() {
       const { error } = await supabase
         .from('predictions')
         .upsert(
-          { user_id: session.user.id, match_id: matchId, user_choice: choice }, 
+          { 
+            user_id: session.user.id, 
+            match_id: matchId, 
+            user_choice: choice,
+            playoff_winner: playoffWinner // пишемо в новий стовпчик
+          }, 
           { onConflict: 'user_id,match_id' }
         );
       if (error) throw error;
@@ -238,29 +258,30 @@ export default function App() {
   const isAdmin = session.user.email === 'ros@predict.wcup' || session.user.email.startsWith('admin');
   const currentUserStats = leaderboard.find(player => player.user_id === session.user.id);
 
-  // 🏆 НАЛАШТОВАНА ФІЛЬТРАЦІЯ ЛІНІЇ: Кубкові матчі з нічиєю лишаються до вибору проходу
+  // 🏆 ФІЛЬТРАЦІЯ ЛІНІЇ: перевіряємо об'єкт стейту
   const unpredictedMatches = matches
     .filter(m => {
       if (m.status === 'finished') return false;
       const pred = predictions[m.id];
-      if (!pred) return true;
+      if (!pred || !pred.user_choice) return true; // взагалі немає прогнозу
       
       const isPlayoffMatch = new Date(m.start_time) >= new Date('2026-06-28T19:00:00Z');
-      if (isPlayoffMatch && pred === 'X') return true;
+      // Якщо це плей-офф, обрано Х, але ще не обрано прохід — залишаємо в лінії
+      if (isPlayoffMatch && pred.user_choice === 'X' && !pred.playoff_winner) return true;
       
       return false;
     })
     .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
 
-  // 🏆 НАЛАШТОВАНА ФІЛЬТРАЦІЯ АКТИВНИХ: Матчі без проходу в плей-офф не переходять сюди передчасно
+  // 🏆 ФІЛЬТРАЦІЯ АКТИВНИХ ПРОГНОЗІВ
   const predictedMatches = matches
     .filter(m => {
       if (m.status === 'finished') return false;
       const pred = predictions[m.id];
-      if (!pred) return false;
+      if (!pred || !pred.user_choice) return false;
 
       const isPlayoffMatch = new Date(m.start_time) >= new Date('2026-06-28T19:00:00Z');
-      if (isPlayoffMatch && pred === 'X') return false;
+      if (isPlayoffMatch && pred.user_choice === 'X' && !pred.playoff_winner) return false;
 
       return true;
     })
@@ -353,11 +374,18 @@ export default function App() {
                   ) : (
                     <div className="flex flex-col gap-2">
                       <AnimatePresence mode="popLayout">
-                        {unpredictedMatches.map((match) => (
-                          <motion.div key={match.id} layout="position" initial={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }} transition={{ type: "spring", stiffness: 350, damping: 32 }} whileHover={{ scale: 1.01, y: -1 }} className="w-full origin-center will-change-transform">
-                            <MatchCard match={match} userPrediction={predictions[match.id]} onMakePrediction={handlePredict} />
-                          </motion.div>
-                        ))}
+                        {unpredictedMatches.map((match) => {
+                          const pred = predictions[match.id];
+                          // Робимо формат сумісним із MatchCard (передаємо стрічку, якщо твій MatchCard так очікує, або передаємо об'єкт)
+                          // Оскільки MatchCard раніше приймав стрічку 'X-1', краще адаптувати передачу:
+                          const legacyStringFormat = pred ? (pred.playoff_winner ? `${pred.user_choice}-${pred.playoff_winner}` : pred.user_choice) : '';
+
+                          return (
+                            <motion.div key={match.id} layout="position" initial={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }} transition={{ type: "spring", stiffness: 350, damping: 32 }} whileHover={{ scale: 1.01, y: -1 }} className="w-full origin-center will-change-transform">
+                              <MatchCard match={match} userPrediction={legacyStringFormat} onMakePrediction={handlePredict} />
+                            </motion.div>
+                          );
+                        })}
                       </AnimatePresence>
                     </div>
                   )}
@@ -397,11 +425,16 @@ export default function App() {
                     ) : (
                       <div className="flex flex-col gap-2">
                         <AnimatePresence mode="popLayout">
-                          {predictedMatches.map((match) => (
-                            <motion.div key={match.id} layout="position" whileHover={{ scale: 1.005 }} className="w-full origin-center">
-                              <MatchCard match={match} userPrediction={predictions[match.id]} onMakePrediction={handlePredict} />
-                            </motion.div>
-                          ))}
+                          {predictedMatches.map((match) => {
+                            const pred = predictions[match.id];
+                            const legacyStringFormat = pred ? (pred.playoff_winner ? `${pred.user_choice}-${pred.playoff_winner}` : pred.user_choice) : '';
+
+                            return (
+                              <motion.div key={match.id} layout="position" whileHover={{ scale: 1.005 }} className="w-full origin-center">
+                                <MatchCard match={match} userPrediction={legacyStringFormat} onMakePrediction={handlePredict} />
+                              </motion.div>
+                            );
+                          })}
                         </AnimatePresence>
                       </div>
                     )}
@@ -414,8 +447,10 @@ export default function App() {
                       </h2>
                       <div className="flex flex-col gap-2">
                         {finishedMatches.map((match) => {
-                          const userChoiceRaw = predictions[match.id] || '';
-                          const userMainChoice = userChoiceRaw.split('-')[0];
+                          const pred = predictions[match.id];
+                          const userMainChoice = pred?.user_choice || '';
+                          const userPlayoffChoice = pred?.playoff_winner || null;
+                          const legacyStringFormat = pred ? (pred.playoff_winner ? `${pred.user_choice}-${pred.playoff_winner}` : pred.user_choice) : '';
 
                           let realResult = '';
                           if (match.home_score > match.away_score) realResult = '1';
@@ -428,16 +463,19 @@ export default function App() {
                           if (!isPlayoffMatch) {
                             isCorrect = userMainChoice && realResult === userMainChoice;
                           } else {
+                            // Логіка перевірки з урахуванням твого нового стовпця матчу extra_winner
                             if (realResult === '1' || realResult === '2') {
                               isCorrect = userMainChoice === realResult;
                             } else if (realResult === 'X') {
+                              // Якщо нічия, то прогноз правильний ТІЛЬКИ якщо користувач вгадав Х 
+                              // (прохід рахується окремо у твоїй системі балів або тут, залежно від того як хочеш підсвічувати картку)
                               isCorrect = userMainChoice === 'X';
                             }
                           }
 
                           return (
                             <div key={match.id} className="w-full">
-                              <MatchCard match={match} userPrediction={userChoiceRaw} onMakePrediction={handlePredict} isReadOnly={true} isCorrect={isCorrect} />
+                              <MatchCard match={match} userPrediction={legacyStringFormat} onMakePrediction={handlePredict} isReadOnly={true} isCorrect={isCorrect} />
                             </div>
                           );
                         })}
@@ -528,23 +566,22 @@ export default function App() {
               <h4 className="text-xs font-bold text-gray-400 border-b border-gray-800 pb-1.5 mb-2.5 sticky top-0 bg-gray-900 z-10">Прогнози гравця:</h4>
               <div className="space-y-2">
                 {matches.map((match) => {
-                  const playerChoiceRaw = selectedUserPreds[match.id];
-                  if (!playerChoiceRaw) return null;
-
-                  const playerMainChoice = playerChoiceRaw.split('-')[0];
+                  const pred = selectedUserPreds[match.id];
+                  if (!pred || !pred.user_choice) return null;
+                  const legacyStringFormat = pred.playoff_winner ? `${pred.user_choice}-${pred.playoff_winner}` : pred.user_choice;
 
                   let realResult = '';
                   if (match.home_score > match.away_score) realResult = '1';
                   else if (match.home_score < match.away_score) realResult = '2';
                   else if (match.home_score !== null && match.away_score !== null) realResult = 'X';
 
-                  const isPlayerCorrect = match.status === 'finished' && (playerMainChoice === realResult);
+                  const isPlayerCorrect = match.status === 'finished' && (pred.user_choice === realResult);
 
                   return (
                     <div key={match.id} className="w-full">
                       <MatchCard 
                         match={match} 
-                        userPrediction={playerChoiceRaw} 
+                        userPrediction={legacyStringFormat} 
                         onMakePrediction={handlePredict} 
                         isReadOnly={true} 
                         isCorrect={isPlayerCorrect} 
