@@ -238,12 +238,32 @@ export default function App() {
   const isAdmin = session.user.email === 'ros@predict.wcup' || session.user.email.startsWith('admin');
   const currentUserStats = leaderboard.find(player => player.user_id === session.user.id);
 
+  // 🏆 НАЛАШТОВАНА ФІЛЬТРАЦІЯ ЛІНІЇ: Кубкові матчі з нічиєю лишаються до вибору проходу
   const unpredictedMatches = matches
-    .filter(m => !predictions[m.id] && m.status !== 'finished')
+    .filter(m => {
+      if (m.status === 'finished') return false;
+      const pred = predictions[m.id];
+      if (!pred) return true;
+      
+      const isPlayoffMatch = new Date(m.start_time) >= new Date('2026-06-28T19:00:00Z');
+      if (isPlayoffMatch && pred === 'X') return true;
+      
+      return false;
+    })
     .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
 
+  // 🏆 НАЛАШТОВАНА ФІЛЬТРАЦІЯ АКТИВНИХ: Матчі без проходу в плей-офф не переходять сюди передчасно
   const predictedMatches = matches
-    .filter(m => predictions[m.id] && m.status !== 'finished')
+    .filter(m => {
+      if (m.status === 'finished') return false;
+      const pred = predictions[m.id];
+      if (!pred) return false;
+
+      const isPlayoffMatch = new Date(m.start_time) >= new Date('2026-06-28T19:00:00Z');
+      if (isPlayoffMatch && pred === 'X') return false;
+
+      return true;
+    })
     .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
 
   const finishedMatches = matches
@@ -402,7 +422,6 @@ export default function App() {
                           else if (match.home_score < match.away_score) realResult = '2';
                           else if (match.home_score !== null && match.away_score !== null) realResult = 'X';
 
-                          // Перевірка стадії плей-офф
                           const isPlayoffMatch = new Date(match.start_time) >= new Date('2026-06-28T19:00:00Z');
                           let isCorrect = false;
 
