@@ -131,81 +131,10 @@ def find_and_update_match(home_team, away_team, home_score, away_score, source):
         print(f"⚠️ Помилка закриття матчу {home_team}: {e}")
 
 def calculate_user_points(match_id, real_home, real_away, start_time):
-    try:
-        match_data = supabase.table("matches").select("*").eq("id", match_id).execute().data
-        if not match_data: return
-        match = match_data[0]
-        
-        home_odds = match.get("home_odds") or 1.0
-        draw_odds = match.get("draw_odds") or 1.0
-        away_odds = match.get("away_odds") or 1.0
-        real_extra_winner = match.get("extra_winner")  # '1' або '2', внесено адміном вручну
-
-        # Визначаємо чистий результат після 90 хвилин
-        real_res = "1" if real_home > real_away else ("2" if real_away > real_home else "X")
-        
-        # Перевіряємо чи це матч плей-офф
-        is_playoff = is_playoff_match(start_time)
-
-        predictions = supabase.table("predictions").select("*").eq("match_id", match_id).execute().data
-        if not predictions: return
-
-        for pred in predictions:
-            user_id = pred.get("user_id")
-            user_choice = pred.get("user_choice")          # '1', 'X', '2'
-            playoff_winner = pred.get("playoff_winner")    # '1' або '2' з нового стовпчика
-            
-            points_to_add = 0
-            is_correct_prediction = False
-            winning_odds = 1.0
-
-            if not is_playoff:
-                # 🔵 ЗВИЧАЙНА ЛОГІКА ГРУПОВОГО ЕТАПУ (1 бал)
-                if user_choice == real_res:
-                    points_to_add = 1
-                    is_correct_prediction = True
-                    winning_odds = home_odds if real_res == "1" else (away_odds if real_res == "2" else draw_odds)
-            else:
-                # 🏆 КУБКОВА ЛОГІКА ПЛЕЙ-ОФФ (Починаючи з 28 числа)
-                
-                # Варіант 1: В основний час хтось виграв чисто (1 або 2)
-                if real_res in ["1", "2"]:
-                    if user_choice == real_res:
-                        # Вгадав чисту перемогу в основний час — 2 бали
-                        points_to_add = 2
-                        is_correct_prediction = True
-                        winning_odds = home_odds if real_res == "1" else away_odds
-                    elif user_choice == "X" and playoff_winner == real_res:
-                        # 🔥 НЮАНС: Користувач обрав нічию, але вгадав команду проходу (яка виграла в основний час) — 1 бал
-                        points_to_add = 1
-                        is_correct_prediction = True
-                        winning_odds = home_odds if real_res == "1" else away_odds
-
-                # Варіант 2: В основний час зафіксовано нічию (X)
-                elif real_res == "X":
-                    if user_choice == "X":
-                        # За саму нічию гарантовано даємо 1 бал
-                        points_to_add += 1
-                        is_correct_prediction = True
-                        winning_odds = draw_odds
-                        
-                        # Перевіряємо, чи вгадав команду проходу згідно з полем extra_winner
-                        if playoff_winner and real_extra_winner and playoff_winner == real_extra_winner:
-                            points_to_add += 1  # Додаємо ще 1 бал (разом 2)
-
-            if is_correct_prediction and points_to_add > 0:
-                leader_entry = supabase.table("leaderboard").select("*").eq("user_id", user_id).execute().data
-                
-                if leader_entry:
-                    current = leader_entry[0]
-                    supabase.table("leaderboard").update({
-                        "total_predictions": (current.get("total_predictions") or 0) + 1,
-                        "total_points": (current.get("total_points") or 0) + points_to_add,
-                        "total_odds": float(current.get("total_odds") or 0.0) + float(winning_odds)
-                    }).eq("user_id", user_id).execute()
-
-    except Exception as e:
-        print(f"⚠️ Помилка лідерборду: {e}")
+    # Оскільки таблиця leaderboard є віртуальним представленням (View),
+    # всі бали розраховуються базою даних автоматично на льоту.
+    # Ця функція залишається порожньою для збереження структури викликів.
+    pass
 
 def main():
     print("🏆 ЗАПУСК АВТОНОМНОЇ СИНХРОНІЗАЦІЇ РЕЗУЛЬТАТІВ 🏆")

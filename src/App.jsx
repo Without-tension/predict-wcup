@@ -347,7 +347,7 @@ export default function App() {
                 <ul className="text-xs text-gray-300 space-y-1 list-disc list-inside">
                   <li>За вгадану чисту перемогу в основний час (<span className="text-white font-bold">П1</span> або <span className="text-white font-bold">П2</span>) нараховується <span className="text-green-400 font-black">2 бали</span>.</li>
                   <li>Якщо обираєш <span className="text-amber-400 font-bold">Нічию (Х)</span>, відкриються кнопки кубкового проходу.</li>
-                  <li>Вгадана нічия по закінченню 90 хв принесе <span className="text-green-400 font-semibold">1 бал</span> + ще <span className="text-green-400 font-semibold">1 бал</span>, якщо вірно вгадано команду, яка пройде далі в наступний раунд!</li>
+                  <li>Вгадана нічия по закінченню 90 хв принесе <span className="text-green-400 font-semibold">1 бал</span> і також <span className="text-green-400 font-semibold">1 бал</span>, якщо вірно вгадано команду, яка пройде далі в наступний раунд!</li>
                 </ul>
               </div>
             )}
