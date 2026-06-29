@@ -98,14 +98,10 @@ def sync_completed_results(sport_key):
                     away_team = match.get("away_team")
                     scores = match.get("scores", [])
                     
-                    # Для плей-офф нам також важливо знати, хто став підсумковим переможцем матчу (пройшов далі)
-                    # The-odds-api у полі "score" зазвичай віддає результат після 90 хвилин.
                     if scores:
                         h_score = next((int(s["score"]) for s in scores if s["name"] == home_team), None)
                         a_score = next((int(s["score"]) for s in scores if s["name"] != home_team), None)
                         
-                        # API результатів також може містити інформацію про фінального winner
-                        # Якщо у вашому API немає кубкового проходу, виставимо логіку безпечного оновлення
                         if h_score is not None and a_score is not None:
                             find_and_update_match(home_team, away_team, h_score, a_score, f"API ({sport_key})")
     except Exception as e:
@@ -143,6 +139,7 @@ def calculate_user_points(match_id, real_home, real_away, start_time):
         home_odds = match.get("home_odds") or 1.0
         draw_odds = match.get("draw_odds") or 1.0
         away_odds = match.get("away_odds") or 1.0
+        real_extra_winner = match.get("extra_winner")  # '1' або '2', внесено адміном вручну
 
         # Визначаємо чистий результат після 90 хвилин
         real_res = "1" if real_home > real_away else ("2" if real_away > real_home else "X")
@@ -155,7 +152,8 @@ def calculate_user_points(match_id, real_home, real_away, start_time):
 
         for pred in predictions:
             user_id = pred.get("user_id")
-            user_choice = pred.get("user_choice")
+            user_choice = pred.get("user_choice")          # '1', 'X', '2'
+            playoff_winner = pred.get("playoff_winner")    # '1' або '2' з нового стовпчика
             
             points_to_add = 0
             is_correct_prediction = False
@@ -169,25 +167,31 @@ def calculate_user_points(match_id, real_home, real_away, start_time):
                     winning_odds = home_odds if real_res == "1" else (away_odds if real_res == "2" else draw_odds)
             else:
                 # 🏆 КУБКОВА ЛОГІКА ПЛЕЙ-ОФФ (Починаючи з 28 числа)
+                
+                # Варіант 1: В основний час хтось виграв чисто (1 або 2)
                 if real_res in ["1", "2"]:
-                    # Якщо в основний час хтось переміг, нараховуємо 2 бали
                     if user_choice == real_res:
+                        # Вгадав чисту перемогу в основний час — 2 бали
                         points_to_add = 2
                         is_correct_prediction = True
                         winning_odds = home_odds if real_res == "1" else away_odds
-                elif real_res == "X":
-                    # Якщо зафіксовано нічию (X), перевіряємо вибір проходу (X-1 або X-2)
-                    if user_choice and user_choice.startswith("X"):
-                        # За саму нічию гарантовано даємо 1 бал
+                    elif user_choice == "X" and playoff_winner == real_res:
+                        # 🔥 НЮАНС: Користувач обрав нічию, але вгадав команду проходу (яка виграла в основний час) — 1 бал
                         points_to_add = 1
+                        is_correct_prediction = True
+                        winning_odds = home_odds if real_res == "1" else away_odds
+
+                # Варіант 2: В основний час зафіксовано нічию (X)
+                elif real_res == "X":
+                    if user_choice == "X":
+                        # За саму нічию гарантовано даємо 1 бал
+                        points_to_add += 1
                         is_correct_prediction = True
                         winning_odds = draw_odds
                         
-                        # ⚠️ Примітка щодо проходу в плей-офф:
-                        # Оскільки офіційне API результатів odds-api віддає рахунок лише за 90 хвилин,
-                        # якщо матч закінчився внічию, адмін у Supabase вручну вкаже рахунок екстра-таймів / пенальті,
-                        # або ви можете перевірити переможця. Наразі, щоб нічого не зламати, якщо вибір починається з X, 
-                        # користувач отримує базовий 1 бал. Якщо ви вносите в базу фінального переможця, можна додати додаткову перевірку тут.
+                        # Перевіряємо, чи вгадав команду проходу згідно з полем extra_winner
+                        if playoff_winner and real_extra_winner and playoff_winner == real_extra_winner:
+                            points_to_add += 1  # Додаємо ще 1 бал (разом 2)
 
             if is_correct_prediction and points_to_add > 0:
                 leader_entry = supabase.table("leaderboard").select("*").eq("user_id", user_id).execute().data
@@ -196,7 +200,7 @@ def calculate_user_points(match_id, real_home, real_away, start_time):
                     current = leader_entry[0]
                     supabase.table("leaderboard").update({
                         "total_predictions": (current.get("total_predictions") or 0) + 1,
-                        "total_points": (current.get("total_points") or 0) + points_to_add, # Нараховуємо динамічні бали (1 або 2)
+                        "total_points": (current.get("total_points") or 0) + points_to_add,
                         "total_odds": float(current.get("total_odds") or 0.0) + float(winning_odds)
                     }).eq("user_id", user_id).execute()
 
