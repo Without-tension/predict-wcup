@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 
 const clubLogos = {
-  // 🏴󠁧󠁢󠁥󠁮󠁧󠁿 АПЛ
+  // 🏴󠁧󠁢󠁥󠁮󠁧󠁿 Англія (АПЛ та Чемпіоншип)
   "Arsenal": "https://upload.wikimedia.org/wikipedia/en/5/53/Arsenal_FC.svg",
   "Aston Villa": "https://upload.wikimedia.org/wikipedia/en/9/9f/Aston_Villa_logo.svg",
   "Bournemouth": "https://upload.wikimedia.org/wikipedia/en/e/e5/AFC_Bournemouth_%282013%29.svg",
   "Brentford": "https://upload.wikimedia.org/wikipedia/en/2/2a/Brentford_FC_crest.svg",
+  "Brighton": "https://upload.wikimedia.org/wikipedia/en/f/fd/Brighton_%26_Hove_Albion_logo.svg",
   "Brighton and Hove Albion": "https://upload.wikimedia.org/wikipedia/en/f/fd/Brighton_%26_Hove_Albion_logo.svg",
   "Chelsea": "https://upload.wikimedia.org/wikipedia/en/c/cc/Chelsea_FC.svg",
   "Crystal Palace": "https://upload.wikimedia.org/wikipedia/en/a/a2/Crystal_Palace_FC_logo_%282022%29.svg",
@@ -25,7 +26,13 @@ const clubLogos = {
   "Wolverhampton Wanderers": "https://upload.wikimedia.org/wikipedia/en/f/fc/Wolverhampton_Wanderers.svg",
   "Wolves": "https://upload.wikimedia.org/wikipedia/en/f/fc/Wolverhampton_Wanderers.svg",
 
-  // ⭐ Ліга Чемпіонів та інші гранди
+  // Додаткові клуби Англії
+  "Coventry City": "https://upload.wikimedia.org/wikipedia/en/9/94/Coventry_City_FC_logo.svg",
+  "Hull City": "https://upload.wikimedia.org/wikipedia/en/5/54/Hull_City_A.F.C._logo.svg",
+  "Sunderland": "https://upload.wikimedia.org/wikipedia/en/7/77/Logo_Sunderland_AFC.svg",
+  "Leeds United": "https://upload.wikimedia.org/wikipedia/en/5/54/Leeds_United_F.C._logo.svg",
+
+  // ⭐ Ліга Чемпіонів та Європа
   "Real Madrid": "https://upload.wikimedia.org/wikipedia/en/5/56/Real_Madrid_CF.svg",
   "Barcelona": "https://upload.wikimedia.org/wikipedia/en/4/47/FC_Barcelona_%28crest%29.svg",
   "Atletico Madrid": "https://upload.wikimedia.org/wikipedia/en/f/f4/Atletico_Madrid_2017_logo.svg",
@@ -94,7 +101,7 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
     if (!logoUrl) {
       return <div className="club-logo-placeholder">{teamName.slice(0, 2).toUpperCase()}</div>;
     }
-    return <img src={logoUrl} alt={teamName} className="club-logo" loading="lazy" />;
+    return <img src={logoUrl} alt={teamName} className="club-logo" loading="lazy" onError={(e) => { e.target.style.display = 'none'; }} />;
   };
 
   const isButtonDisabled = status === 'finished' || isLiveOrPast || isReadOnly;
