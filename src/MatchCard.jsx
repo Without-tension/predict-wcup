@@ -2,35 +2,39 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 
 const clubLogos = {
-  // 🏴󠁧󠁢󠁥󠁮󠁧󠁿 Англія (АПЛ та Чемпіоншип)
-  "Arsenal": "https://upload.wikimedia.org/wikipedia/en/5/53/Arsenal_FC.svg",
-  "Aston Villa": "https://upload.wikimedia.org/wikipedia/en/9/9f/Aston_Villa_logo.svg",
-  "Bournemouth": "https://upload.wikimedia.org/wikipedia/en/e/e5/AFC_Bournemouth_%282013%29.svg",
-  "Brentford": "https://upload.wikimedia.org/wikipedia/en/2/2a/Brentford_FC_crest.svg",
-  "Brighton": "https://upload.wikimedia.org/wikipedia/en/f/fd/Brighton_%26_Hove_Albion_logo.svg",
-  "Brighton and Hove Albion": "https://upload.wikimedia.org/wikipedia/en/f/fd/Brighton_%26_Hove_Albion_logo.svg",
-  "Chelsea": "https://upload.wikimedia.org/wikipedia/en/c/cc/Chelsea_FC.svg",
-  "Crystal Palace": "https://upload.wikimedia.org/wikipedia/en/a/a2/Crystal_Palace_FC_logo_%282022%29.svg",
-  "Everton": "https://upload.wikimedia.org/wikipedia/en/7/7c/Everton_FC_logo.svg",
-  "Fulham": "https://upload.wikimedia.org/wikipedia/en/e/eb/Fulham_FC_%28shield%29.svg",
-  "Ipswich Town": "https://upload.wikimedia.org/wikipedia/en/4/43/Ipswich_Town.svg",
-  "Leicester City": "https://upload.wikimedia.org/wikipedia/en/2/2d/Leicester_City_crest.svg",
-  "Liverpool": "https://upload.wikimedia.org/wikipedia/en/0/0c/Liverpool_FC.svg",
-  "Manchester City": "https://upload.wikimedia.org/wikipedia/en/e/eb/Manchester_City_FC_badge.svg",
-  "Manchester United": "https://upload.wikimedia.org/wikipedia/en/7/7a/Manchester_United_FC_crest.svg",
-  "Newcastle United": "https://upload.wikimedia.org/wikipedia/en/5/56/Newcastle_United_Logo.svg",
-  "Nottingham Forest": "https://upload.wikimedia.org/wikipedia/en/e/e5/Nottingham_Forest_F.C._logo.svg",
-  "Southampton": "https://upload.wikimedia.org/wikipedia/en/c/c9/FC_Southampton.svg",
-  "Tottenham Hotspur": "https://upload.wikimedia.org/wikipedia/en/b/b4/Tottenham_Hotspur.svg",
-  "West Ham United": "https://upload.wikimedia.org/wikipedia/en/c/c2/West_Ham_United_FC_logo.svg",
-  "Wolverhampton Wanderers": "https://upload.wikimedia.org/wikipedia/en/f/fc/Wolverhampton_Wanderers.svg",
-  "Wolves": "https://upload.wikimedia.org/wikipedia/en/f/fc/Wolverhampton_Wanderers.svg",
-
-  // Додаткові клуби Англії
-  "Coventry City": "https://upload.wikimedia.org/wikipedia/en/9/94/Coventry_City_FC_logo.svg",
-  "Hull City": "https://upload.wikimedia.org/wikipedia/en/5/54/Hull_City_A.F.C._logo.svg",
-  "Sunderland": "https://upload.wikimedia.org/wikipedia/en/7/77/Logo_Sunderland_AFC.svg",
-  "Leeds United": "https://upload.wikimedia.org/wikipedia/en/5/54/Leeds_United_F.C._logo.svg",
+  // 🏴󠁧󠁢󠁥󠁮󠁧󠁿 АПЛ та Чемпіоншип (Стабільні прямі CDN)
+  "Aston Villa": "https://images.fotmob.com/image_resources/logo/teamlogo/10252.png",
+  "Brighton": "https://images.fotmob.com/image_resources/logo/teamlogo/10204.png",
+  "Brighton and Hove Albion": "https://images.fotmob.com/image_resources/logo/teamlogo/10204.png",
+  "Brighton & Hove Albion": "https://images.fotmob.com/image_resources/logo/teamlogo/10204.png",
+  "Sunderland": "https://images.fotmob.com/image_resources/logo/teamlogo/8472.png",
+  "Sunderland AFC": "https://images.fotmob.com/image_resources/logo/teamlogo/8472.png",
+  "Coventry City": "https://images.fotmob.com/image_resources/logo/teamlogo/8669.png",
+  "Coventry": "https://images.fotmob.com/image_resources/logo/teamlogo/8669.png",
+  "Hull City": "https://images.fotmob.com/image_resources/logo/teamlogo/8668.png",
+  "Leeds United": "https://images.fotmob.com/image_resources/logo/teamlogo/8463.png",
+  "Leeds": "https://images.fotmob.com/image_resources/logo/teamlogo/8463.png",
+  "Arsenal": "https://images.fotmob.com/image_resources/logo/teamlogo/9825.png",
+  "Bournemouth": "https://images.fotmob.com/image_resources/logo/teamlogo/8678.png",
+  "Brentford": "https://images.fotmob.com/image_resources/logo/teamlogo/9937.png",
+  "Chelsea": "https://images.fotmob.com/image_resources/logo/teamlogo/8455.png",
+  "Crystal Palace": "https://images.fotmob.com/image_resources/logo/teamlogo/9826.png",
+  "Everton": "https://images.fotmob.com/image_resources/logo/teamlogo/8668.png",
+  "Fulham": "https://images.fotmob.com/image_resources/logo/teamlogo/9879.png",
+  "Ipswich Town": "https://images.fotmob.com/image_resources/logo/teamlogo/9832.png",
+  "Leicester City": "https://images.fotmob.com/image_resources/logo/teamlogo/8197.png",
+  "Liverpool": "https://images.fotmob.com/image_resources/logo/teamlogo/8650.png",
+  "Manchester City": "https://images.fotmob.com/image_resources/logo/teamlogo/8456.png",
+  "Manchester United": "https://images.fotmob.com/image_resources/logo/teamlogo/10260.png",
+  "Newcastle United": "https://images.fotmob.com/image_resources/logo/teamlogo/10261.png",
+  "Nottingham Forest": "https://images.fotmob.com/image_resources/logo/teamlogo/10203.png",
+  "Southampton": "https://images.fotmob.com/image_resources/logo/teamlogo/8466.png",
+  "Tottenham Hotspur": "https://images.fotmob.com/image_resources/logo/teamlogo/8586.png",
+  "Tottenham": "https://images.fotmob.com/image_resources/logo/teamlogo/8586.png",
+  "West Ham United": "https://images.fotmob.com/image_resources/logo/teamlogo/8654.png",
+  "West Ham": "https://images.fotmob.com/image_resources/logo/teamlogo/8654.png",
+  "Wolverhampton Wanderers": "https://images.fotmob.com/image_resources/logo/teamlogo/8602.png",
+  "Wolves": "https://images.fotmob.com/image_resources/logo/teamlogo/8602.png",
 
   // ⭐ Ліга Чемпіонів та Європа
   "Real Madrid": "https://upload.wikimedia.org/wikipedia/en/5/56/Real_Madrid_CF.svg",
@@ -101,7 +105,16 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
     if (!logoUrl) {
       return <div className="club-logo-placeholder">{teamName.slice(0, 2).toUpperCase()}</div>;
     }
-    return <img src={logoUrl} alt={teamName} className="club-logo" loading="lazy" onError={(e) => { e.target.style.display = 'none'; }} />;
+    return (
+      <img
+        src={logoUrl}
+        alt={teamName}
+        className="club-logo"
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={(e) => { e.target.style.display = 'none'; }}
+      />
+    );
   };
 
   const isButtonDisabled = status === 'finished' || isLiveOrPast || isReadOnly;
