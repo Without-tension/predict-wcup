@@ -1,33 +1,58 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
-const worldCupFlags = {
-  "Bosnia & Herzegovina": "ba", "Haiti": "ht", "Turkey": "tr", "Curaçao": "cw",
-  "Ivory Coast": "ci", "Cape Verde": "cv", "Norway": "no", "Iraq": "iq",
-  "Jordan": "jo", "DR Congo": "cd", "Uzbekistan": "uz", "Argentina": "ar", 
-  "Algeria": "dz", "Australia": "au", "Austria": "at", "Belgium": "be", 
-  "Brazil": "br", "Cameroon": "cm", "Canada": "ca", "Chile": "cl", 
-  "Colombia": "co", "Costa Rica": "cr", "Croatia": "hr", "Czech Republic": "cz", 
-  "Denmark": "dk", "Ecuador": "ec", "Egypt": "eg", "England": "gb-eng", 
-  "France": "fr", "Germany": "de", "Ghana": "gh", "Greece": "gr", 
-  "Iran": "ir", "Italy": "it", "Japan": "jp", "Mexico": "mx", 
-  "Morocco": "ma", "Netherlands": "nl", "New Zealand": "nz", "Nigeria": "ng", 
-  "Panama": "pa", "Paraguay": "py", "Peru": "pe", "Poland": "pl", 
-  "Portugal": "pt", "Qatar": "qa", "Saudi Arabia": "sa", "Scotland": "gb-sct", 
-  "Senegal": "sn", "Serbia": "rs", "South Africa": "za", "South Korea": "kr", 
-  "Spain": "es", "Sweden": "se", "Switzerland": "ch", "Tunisia": "tn", 
-  "Ukraine": "ua", "United States": "us", "Uruguay": "uy", "Wales": "gb-wls", "USA": "us"
+const clubLogos = {
+  // 🏴󠁧󠁢󠁥󠁮󠁧󠁿 АПЛ
+  "Arsenal": "https://upload.wikimedia.org/wikipedia/en/5/53/Arsenal_FC.svg",
+  "Aston Villa": "https://upload.wikimedia.org/wikipedia/en/9/9f/Aston_Villa_logo.svg",
+  "Bournemouth": "https://upload.wikimedia.org/wikipedia/en/e/e5/AFC_Bournemouth_%282013%29.svg",
+  "Brentford": "https://upload.wikimedia.org/wikipedia/en/2/2a/Brentford_FC_crest.svg",
+  "Brighton and Hove Albion": "https://upload.wikimedia.org/wikipedia/en/f/fd/Brighton_%26_Hove_Albion_logo.svg",
+  "Chelsea": "https://upload.wikimedia.org/wikipedia/en/c/cc/Chelsea_FC.svg",
+  "Crystal Palace": "https://upload.wikimedia.org/wikipedia/en/a/a2/Crystal_Palace_FC_logo_%282022%29.svg",
+  "Everton": "https://upload.wikimedia.org/wikipedia/en/7/7c/Everton_FC_logo.svg",
+  "Fulham": "https://upload.wikimedia.org/wikipedia/en/e/eb/Fulham_FC_%28shield%29.svg",
+  "Ipswich Town": "https://upload.wikimedia.org/wikipedia/en/4/43/Ipswich_Town.svg",
+  "Leicester City": "https://upload.wikimedia.org/wikipedia/en/2/2d/Leicester_City_crest.svg",
+  "Liverpool": "https://upload.wikimedia.org/wikipedia/en/0/0c/Liverpool_FC.svg",
+  "Manchester City": "https://upload.wikimedia.org/wikipedia/en/e/eb/Manchester_City_FC_badge.svg",
+  "Manchester United": "https://upload.wikimedia.org/wikipedia/en/7/7a/Manchester_United_FC_crest.svg",
+  "Newcastle United": "https://upload.wikimedia.org/wikipedia/en/5/56/Newcastle_United_Logo.svg",
+  "Nottingham Forest": "https://upload.wikimedia.org/wikipedia/en/e/e5/Nottingham_Forest_F.C._logo.svg",
+  "Southampton": "https://upload.wikimedia.org/wikipedia/en/c/c9/FC_Southampton.svg",
+  "Tottenham Hotspur": "https://upload.wikimedia.org/wikipedia/en/b/b4/Tottenham_Hotspur.svg",
+  "West Ham United": "https://upload.wikimedia.org/wikipedia/en/c/c2/West_Ham_United_FC_logo.svg",
+  "Wolverhampton Wanderers": "https://upload.wikimedia.org/wikipedia/en/f/fc/Wolverhampton_Wanderers.svg",
+  "Wolves": "https://upload.wikimedia.org/wikipedia/en/f/fc/Wolverhampton_Wanderers.svg",
+
+  // ⭐ Ліга Чемпіонів та інші гранди
+  "Real Madrid": "https://upload.wikimedia.org/wikipedia/en/5/56/Real_Madrid_CF.svg",
+  "Barcelona": "https://upload.wikimedia.org/wikipedia/en/4/47/FC_Barcelona_%28crest%29.svg",
+  "Atletico Madrid": "https://upload.wikimedia.org/wikipedia/en/f/f4/Atletico_Madrid_2017_logo.svg",
+  "Bayern Munich": "https://upload.wikimedia.org/wikipedia/commons/1/1b/FC_Bayern_M%C3%BCnchen_logo_%282017%29.svg",
+  "Borussia Dortmund": "https://upload.wikimedia.org/wikipedia/commons/6/67/Borussia_Dortmund_logo.svg",
+  "Bayer Leverkusen": "https://upload.wikimedia.org/wikipedia/en/5/59/Bayer_04_Leverkusen_logo.svg",
+  "Paris Saint-Germain": "https://upload.wikimedia.org/wikipedia/en/a/a7/Paris_Saint-Germain_F.C..svg",
+  "PSG": "https://upload.wikimedia.org/wikipedia/en/a/a7/Paris_Saint-Germain_F.C..svg",
+  "Inter Milan": "https://upload.wikimedia.org/wikipedia/commons/0/05/FC_Internazionale_Milano_2021.svg",
+  "AC Milan": "https://upload.wikimedia.org/wikipedia/commons/d/d0/Logo_of_AC_Milan.svg",
+  "Juventus": "https://upload.wikimedia.org/wikipedia/commons/b/bc/Juventus_FC_2017_icon_%28black%29.svg",
+  "Atalanta": "https://upload.wikimedia.org/wikipedia/en/6/66/AtalantaBC.svg",
+  "Sporting CP": "https://upload.wikimedia.org/wikipedia/en/e/e1/Sporting_Clube_de_Portugal_%28Logo%29.svg",
+  "Benfica": "https://upload.wikimedia.org/wikipedia/en/a/a2/SL_Benfica_logo.svg",
+  "Porto": "https://upload.wikimedia.org/wikipedia/en/f/f1/FC_Porto.svg",
+  "PSV Eindhoven": "https://upload.wikimedia.org/wikipedia/en/0/05/PSV_Eindhoven.svg",
+  "Feyenoord": "https://upload.wikimedia.org/wikipedia/en/e/e3/Feyenoord_logo.svg",
+  "Celtic": "https://upload.wikimedia.org/wikipedia/en/3/35/Celtic_FC.svg",
+  "Shakhtar Donetsk": "https://upload.wikimedia.org/wikipedia/en/a/a1/FC_Shakhtar_Donetsk.svg",
+  "Dynamo Kyiv": "https://upload.wikimedia.org/wikipedia/commons/d/d9/FC_Dynamo_Kyiv_logo.svg"
 };
 
-// 🚀 Додали пропс isCorrect = false
 const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false, isCorrect = false }) => {
   const { id, home_team, away_team, start_time, home_odds, draw_odds, away_odds, status, home_score, away_score } = match;
 
   const [timeLeft, setTimeLeft] = useState('');
   const [isLiveOrPast, setIsLiveOrPast] = useState(false);
-
-  // 🏆 АВТО-ВИЗНАЧЕННЯ СТАДІЇ: 28.06.2026 22:00 Києва — це рівно 19:00:00 за UTC (Z)
-  const isPlayoff = new Date(start_time) >= new Date('2026-06-28T19:00:00Z');
 
   useEffect(() => {
     if (status === 'finished') {
@@ -42,7 +67,7 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
 
       if (difference <= 0) {
         setIsLiveOrPast(true);
-        setTimeLeft('🔒 Ставки закриті');
+        setTimeLeft('🔒 Закрито');
         return;
       }
 
@@ -54,7 +79,7 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
       let formattedTime = '⏳ ';
       if (days > 0) formattedTime += `${days}д `;
       formattedTime += `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-      
+
       setTimeLeft(formattedTime);
       setIsLiveOrPast(false);
     };
@@ -64,107 +89,76 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
     return () => clearInterval(timer);
   }, [start_time, status]);
 
-  const renderFlag = (teamName) => {
-    const code = worldCupFlags[teamName];
-    if (!code) return null;
-    return <img src={`https://flagcdn.com/w40/${code}.png`} alt="" className="country-flag" />;
+  const renderClubLogo = (teamName) => {
+    const logoUrl = clubLogos[teamName];
+    if (!logoUrl) {
+      return <div className="club-logo-placeholder">{teamName.slice(0, 2).toUpperCase()}</div>;
+    }
+    return <img src={logoUrl} alt={teamName} className="club-logo" loading="lazy" />;
   };
 
   const isButtonDisabled = status === 'finished' || isLiveOrPast || isReadOnly;
   const shouldHidePrediction = isReadOnly && !isLiveOrPast && status !== 'finished';
 
-  // 🎯 НОВА ЧИСТА СТРУКТУРА: Отримуємо дані з об'єкта чи рядка сумісності
-  let mainChoice = null;
-  let passageChoice = null;
-
+  let currentChoice = null;
   if (userPrediction) {
-    if (typeof userPrediction === 'object') {
-      mainChoice = userPrediction.user_choice;
-      passageChoice = userPrediction.playoff_winner;
-    } else if (typeof userPrediction === 'string') {
-      mainChoice = userPrediction.split('-')[0];
-      passageChoice = userPrediction.split('-')[1] || null;
-    }
+    currentChoice = typeof userPrediction === 'object' ? userPrediction.user_choice : userPrediction.split('-')[0];
   }
 
-  const handleMainClick = (choice) => {
-    if (isPlayoff && choice === 'X') {
-      // Передаємо чистий 'X' та null для проходу, чекаючи на вибір проходу користувачем
-      onMakePrediction(id, 'X', null);
-    } else {
-      // Чиста перемога 1 або 2 — прохід null
-      onMakePrediction(id, choice, null);
-    }
-  };
-
-  const handlePassageClick = (teamPassage) => {
-    // Фіксуємо основний вибір 'X' та передаємо переможця кубкової стадії '1' або '2' в окремий стовпчик
-    onMakePrediction(id, 'X', teamPassage);
-  };
-
   return (
-    <motion.div 
+    <motion.div
       layout="position"
-      /* 🚀 Додаємо динамічний клас correct-glow, якщо матч вгадано */
       className={`match-card ${isReadOnly ? 'readonly-mode' : ''} ${isCorrect ? 'correct-glow' : ''}`}
     >
       <style>{`
         .match-card {
           max-width: 600px;
           margin: 6px auto;
-          padding: 14px 18px;
-          background: linear-gradient(145deg, #1e2538, #161b29);
+          padding: 12px 16px;
+          background: linear-gradient(145deg, #181f2f, #131722);
           border-radius: 14px;
-          border: 1px solid #2d3748;
-          box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
-          transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+          border: 1px solid #283347;
+          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+          box-sizing: border-box;
+          transition: border-color 0.2s ease;
         }
         .match-card:hover {
-          border-color: #4a5568;
-          box-shadow: 0 10px 26px rgba(0, 0, 0, 0.38);
+          border-color: #3f4e6b;
         }
-        
-        /* 🚀 ФІРМОВЕ ОДНОКОНТУРНЕ ПІДСВІЧУВАННЯ ДЛЯ УСПІШНО ВГАДАНОГО МАТЧУ */
         .correct-glow {
-          border-color: rgba(34, 197, 94, 0.35) !important;
-          background: linear-gradient(145deg, #13241d, #111a18) !important;
-          box-shadow: 0 4px 15px rgba(34, 197, 94, 0.05) !important;
-          opacity: 1 !important; /* Робимо вгадані картки повністю соковитими */
+          border-color: rgba(34, 197, 94, 0.4) !important;
+          background: linear-gradient(145deg, #13241d, #101815) !important;
         }
-
         .readonly-mode {
-          opacity: 0.55; /* Трохи приглушуємо не вгадані завершені матчі */
-          background: #151a24;
+          opacity: 0.65;
         }
         .match-header-row {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 12px;
-          font-size: 11px;
+          margin-bottom: 10px;
+          font-size: 10px;
           font-weight: 700;
           text-transform: uppercase;
-          tracking-wider;
         }
         .match-date-static { color: #64748b; }
-        .match-countdown { color: #f6ad55; background: rgba(246, 173, 85, 0.05); padding: 3px 8px; border-radius: 7px; font-variant-numeric: tabular-nums; }
-        .match-countdown.blocked { color: #fc8181; background: rgba(252, 129, 129, 0.05); }
-        .match-countdown.finished { color: #4ade80; background: rgba(74, 222, 128, 0.06); font-size: 12px; font-weight: 800; }
-        
+        .match-countdown { color: #f6ad55; background: rgba(246, 173, 85, 0.08); padding: 2px 7px; border-radius: 6px; }
+        .match-countdown.blocked { color: #fc8181; background: rgba(252, 129, 129, 0.08); }
+        .match-countdown.finished { color: #4ade80; background: rgba(74, 222, 128, 0.08); font-weight: 800; font-size: 11px; }
+
         .match-main-row { 
           display: flex; 
           flex-direction: column;
           align-items: center; 
-          justify-content: center; 
-          gap: 12px; 
+          gap: 10px; 
+          width: 100%;
         }
-        
         .team-block { 
           display: flex; 
           align-items: center; 
-          gap: 11px; 
+          gap: 8px; 
           width: 100%; 
-          font-size: 15px;
+          font-size: 13px;
           font-weight: 700; 
           color: #ffffff;
         }
@@ -177,172 +171,96 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
         .team-block.home { justify-content: flex-start; }
         .team-block.away { justify-content: flex-end; }
         
-        .country-flag { 
-          width: 27px; 
-          height: 19px; 
-          object-fit: cover; 
-          border-radius: 4px; 
-          box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-          transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-          will-change: transform;
+        .club-logo { 
+          width: 22px; 
+          height: 22px; 
+          object-fit: contain; 
+          flex-shrink: 0;
+          filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
         }
-        .match-card:hover .country-flag {
-          transform: scale(1.14);
+        .club-logo-placeholder {
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          background: #2a364f;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 8px;
+          font-weight: 800;
+          color: #94a3b8;
+          flex-shrink: 0;
         }
         
         .odds-container { 
           display: flex; 
-          gap: 8px; 
+          gap: 6px; 
           width: 100%; 
           justify-content: center; 
         }
-        
         .odds-btn {
           flex: 1;
           display: flex;
           flex-direction: column;
           align-items: center;
-          justify-content: center;
-          padding: 9px 5px;
-          background-color: #1e2638;
-          border: 1px solid #2d3748;
-          border-radius: 9px;
+          padding: 6px 4px;
+          background-color: #1a2233;
+          border: 1px solid #2a374f;
+          border-radius: 8px;
           cursor: pointer;
-          transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.2s, border-color 0.2s;
-          will-change: transform;
+          transition: all 0.15s ease;
         }
-        .odds-label { font-size: 9px; font-weight: 800; color: #64748b; margin-bottom: 2px; text-transform: uppercase; }
-        .odds-num { font-size: 14px; font-weight: 800; color: #22c55e; }
+        .odds-label { font-size: 9px; font-weight: 800; color: #64748b; margin-bottom: 1px; }
+        .odds-num { font-size: 13px; font-weight: 800; color: #22c55e; }
         
         .odds-btn:hover:not(:disabled) {
-          transform: scale(1.07);
-          background-color: #27324a;
-          border-color: #4a5d80;
-        }
-        .odds-btn:not(:disabled):active {
-          transform: scale(0.94);
+          background-color: #243048;
         }
         .odds-btn.selected {
           background: linear-gradient(135deg, #22c55e, #16a34a) !important;
           border-color: #22c55e !important;
-          box-shadow: 0 0 12px rgba(34, 197, 94, 0.32);
-          transform: scale(1.02);
         }
         .odds-btn.selected .odds-label { color: rgba(255,255,255,0.7) !important; }
         .odds-btn.selected .odds-num { color: #ffffff !important; }
-        .odds-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none !important; }
-        
-        .hidden-prediction-tag {
-          font-size: 10px;
-          color: #64748b;
-          font-style: italic;
-          background: #111622;
-          padding: 7px 14px;
-          border-radius: 7px;
-          border: 1px dashed #2d3748;
-          width: 100%;
-          text-align: center;
-        }
+        .odds-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-        /* 🏆 ЕКСКЛЮЗИВНІ КУБКОВІ СТИЛІ ДЛЯ ПРОХОДУ ДАЛІ */
-        .playoff-passage-box {
-          width: 100%;
-          display: flex;
-          gap: 8px;
-          margin-top: 10px;
-          padding-top: 10px;
-          border-top: 1px dashed #2d3748;
-          justify-content: center;
-        }
-        .playoff-passage-btn {
-          flex: 1;
-          padding: 7px 5px;
-          font-size: 11px;
-          font-weight: 800;
-          border-radius: 8px;
-          border: 1px solid #10b981;
-          background: rgba(16, 185, 129, 0.03);
-          color: #10b981;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          text-transform: uppercase;
-          letter-spacing: 0.3px;
-        }
-        .playoff-passage-btn:hover:not(:disabled) {
-          background: #10b981;
-          color: #111622;
-        }
-        .playoff-passage-btn.active {
-          background: #10b981 !important;
-          color: #111622 !important;
-          box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
-        }
-        .playoff-passage-btn:disabled {
-          opacity: 0.4;
-          cursor: not-allowed;
-        }
-
-        @media (min-width: 500px) {
-          .match-main-row { 
-            flex-direction: row; 
-            gap: 12px; 
-          }
-          .team-block { width: 35%; }
+        @media (min-width: 520px) {
+          .match-main-row { flex-direction: row; justify-content: space-between; }
+          .team-block { width: 35%; font-size: 14px; }
           .odds-container { width: 30%; }
-          .hidden-prediction-tag { width: auto; }
-          .odds-btn { padding: 8px 4px; }
         }
       `}</style>
 
       <div className="match-header-row">
         <div className="match-date-static">
-          {new Date(start_time).toLocaleString('uk-UA', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+          {new Date(start_time).toLocaleString('uk-UA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
         </div>
-        
         {status === 'finished' ? (
-          <div className="match-countdown finished">
-            🏁 {home_score}:{away_score}
-          </div>
+          <div className="match-countdown finished">🏁 {home_score}:{away_score}</div>
         ) : (
-          <div className={`match-countdown ${isLiveOrPast ? 'blocked' : ''}`}>
-            {timeLeft}
-          </div>
+          <div className={`match-countdown ${isLiveOrPast ? 'blocked' : ''}`}>{timeLeft}</div>
         )}
       </div>
 
       <div className="match-main-row">
         <div className="team-block home">
-          {renderFlag(home_team)}
+          {renderClubLogo(home_team)}
           <span className="truncate" title={home_team}>{home_team}</span>
         </div>
 
         {shouldHidePrediction ? (
-          <div className="hidden-prediction-tag">🔒 Приховано до старту</div>
+          <div className="text-[10px] text-gray-500 py-1.5 px-3 bg-gray-950/40 rounded-lg border border-dashed border-gray-800">🔒 Приховано</div>
         ) : (
           <div className="odds-container">
-            <button 
-              disabled={isButtonDisabled}
-              className={`odds-btn ${mainChoice === '1' ? 'selected' : ''}`}
-              onClick={() => handleMainClick('1')}
-            >
+            <button disabled={isButtonDisabled} className={`odds-btn ${currentChoice === '1' ? 'selected' : ''}`} onClick={() => onMakePrediction(id, '1')}>
               <span className="odds-label">П1</span>
               <span className="odds-num">{home_odds?.toFixed(2) || '—'}</span>
             </button>
-
-            <button 
-              disabled={isButtonDisabled}
-              className={`odds-btn ${mainChoice === 'X' ? 'selected' : ''}`}
-              onClick={() => handleMainClick('X')}
-            >
+            <button disabled={isButtonDisabled} className={`odds-btn ${currentChoice === 'X' ? 'selected' : ''}`} onClick={() => onMakePrediction(id, 'X')}>
               <span className="odds-label">X</span>
               <span className="odds-num">{draw_odds?.toFixed(2) || '—'}</span>
             </button>
-
-            <button 
-              disabled={isButtonDisabled}
-              className={`odds-btn ${mainChoice === '2' ? 'selected' : ''}`}
-              onClick={() => handleMainClick('2')}
-            >
+            <button disabled={isButtonDisabled} className={`odds-btn ${currentChoice === '2' ? 'selected' : ''}`} onClick={() => onMakePrediction(id, '2')}>
               <span className="odds-label">П2</span>
               <span className="odds-num">{away_odds?.toFixed(2) || '—'}</span>
             </button>
@@ -351,36 +269,9 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
 
         <div className="team-block away">
           <span className="truncate" title={away_team}>{away_team}</span>
-          {renderFlag(away_team)}
+          {renderClubLogo(away_team)}
         </div>
       </div>
-
-      {/* 🏆 ДИНАМІЧНИЙ БЛОК ДЛЯ СТАДІЇ ПЛЕЙ-ОФФ (Показується тільки якщо обрано Нічию Х) */}
-      <AnimatePresence>
-        {isPlayoff && mainChoice === 'X' && !shouldHidePrediction && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="playoff-passage-box"
-          >
-            <button
-              disabled={isButtonDisabled}
-              className={`playoff-passage-btn ${passageChoice === '1' ? 'active' : ''}`}
-              onClick={() => handlePassageClick('1')}
-            >
-              🏅 Прохід {home_team}
-            </button>
-            <button
-              disabled={isButtonDisabled}
-              className={`playoff-passage-btn ${passageChoice === '2' ? 'active' : ''}`}
-              onClick={() => handlePassageClick('2')}
-            >
-              🏅 Прохід {away_team}
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </motion.div>
   );
 };
