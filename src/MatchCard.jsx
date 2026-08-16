@@ -11,7 +11,7 @@ const clubLogos = {
   "Sunderland AFC": "https://images.fotmob.com/image_resources/logo/teamlogo/8472.png",
   "Coventry City": "https://images.fotmob.com/image_resources/logo/teamlogo/8669.png",
   "Coventry": "https://images.fotmob.com/image_resources/logo/teamlogo/8669.png",
-  "Hull City": "https://images.fotmob.com/image_resources/logo/teamlogo/8668.png",
+  "Hull City": "https://upload.wikimedia.org/wikipedia/en/5/54/Hull_City_A.F.C._logo.svg",
   "Leeds United": "https://images.fotmob.com/image_resources/logo/teamlogo/8463.png",
   "Leeds": "https://images.fotmob.com/image_resources/logo/teamlogo/8463.png",
   "Arsenal": "https://images.fotmob.com/image_resources/logo/teamlogo/9825.png",
@@ -21,7 +21,7 @@ const clubLogos = {
   "Crystal Palace": "https://images.fotmob.com/image_resources/logo/teamlogo/9826.png",
   "Everton": "https://images.fotmob.com/image_resources/logo/teamlogo/8668.png",
   "Fulham": "https://images.fotmob.com/image_resources/logo/teamlogo/9879.png",
-  "Ipswich Town": "https://images.fotmob.com/image_resources/logo/teamlogo/9832.png",
+  "Ipswich Town": "https://upload.wikimedia.org/wikipedia/ru/4/43/Ipswich_Town.svg?utm_source=ru.wikipedia.org&utm_campaign=imageinfo&utm_content=original",
   "Leicester City": "https://images.fotmob.com/image_resources/logo/teamlogo/8197.png",
   "Liverpool": "https://images.fotmob.com/image_resources/logo/teamlogo/8650.png",
   "Manchester City": "https://images.fotmob.com/image_resources/logo/teamlogo/8456.png",
@@ -170,13 +170,13 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
           display: flex; 
           flex-direction: column;
           align-items: center; 
-          gap: 10px; 
+          gap: 12px; 
           width: 100%;
         }
         .team-block { 
           display: flex; 
           align-items: center; 
-          gap: 8px; 
+          gap: 10px; 
           width: 100%; 
           font-size: 13px;
           font-weight: 700; 
@@ -191,22 +191,23 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
         .team-block.home { justify-content: flex-start; }
         .team-block.away { justify-content: flex-end; }
         
+        /* 🏆 ЗБІЛЬШЕНІ ЛОГОТИПИ КЛУБІВ (+65%) */
         .club-logo { 
-          width: 22px; 
-          height: 22px; 
+          width: 36px; 
+          height: 36px; 
           object-fit: contain; 
           flex-shrink: 0;
-          filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+          filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
         }
         .club-logo-placeholder {
-          width: 22px;
-          height: 22px;
+          width: 36px;
+          height: 36px;
           border-radius: 50%;
           background: #2a364f;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 8px;
+          font-size: 11px;
           font-weight: 800;
           color: #94a3b8;
           flex-shrink: 0;
@@ -246,8 +247,10 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
 
         @media (min-width: 520px) {
           .match-main-row { flex-direction: row; justify-content: space-between; }
-          .team-block { width: 35%; font-size: 14px; }
+          .team-block { width: 35%; font-size: 14px; gap: 12px; }
           .odds-container { width: 30%; }
+          .club-logo { width: 40px; height: 40px; }
+          .club-logo-placeholder { width: 40px; height: 40px; font-size: 12px; }
         }
       `}</style>
 
