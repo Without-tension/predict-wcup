@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const clubLogos = {
   // 🏴󠁧󠁢󠁥󠁮󠁧󠁿 АПЛ та Чемпіоншип (Стабільні прямі CDN)
@@ -59,11 +59,12 @@ const clubLogos = {
   "Dynamo Kyiv": "https://upload.wikimedia.org/wikipedia/commons/d/d9/FC_Dynamo_Kyiv_logo.svg"
 };
 
-const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false, isCorrect = false }) => {
+const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false, showOddsAlways = false, isCorrect = false }) => {
   const { id, home_team, away_team, start_time, home_odds, draw_odds, away_odds, status, home_score, away_score } = match;
 
   const [timeLeft, setTimeLeft] = useState('');
   const [isLiveOrPast, setIsLiveOrPast] = useState(false);
+  const [isRevealed, setIsRevealed] = useState(false);
 
   useEffect(() => {
     if (status === 'finished') {
@@ -106,31 +107,32 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
       return <div className="club-logo-placeholder">{teamName.slice(0, 2).toUpperCase()}</div>;
     }
     return (
-      <img
-        src={logoUrl}
-        alt={teamName}
-        className="club-logo"
-        loading="lazy"
-        referrerPolicy="no-referrer"
-        onError={(e) => { e.target.style.display = 'none'; }}
-      />
+        <img
+            src={logoUrl}
+            alt={teamName}
+            className="club-logo"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={(e) => { e.target.style.display = 'none'; }}
+        />
     );
   };
 
-  const isButtonDisabled = status === 'finished' || isLiveOrPast || isReadOnly;
-  const shouldHidePrediction = isReadOnly && !isLiveOrPast && status !== 'finished';
+  const isButtonDisabled = isReadOnly || status === 'finished' || isLiveOrPast;
 
   let currentChoice = null;
   if (userPrediction) {
     currentChoice = typeof userPrediction === 'object' ? userPrediction.user_choice : userPrediction.split('-')[0];
   }
 
+  const isFinished = status === 'finished';
+
   return (
-    <motion.div
-      layout="position"
-      className={`match-card ${isReadOnly ? 'readonly-mode' : ''} ${isCorrect ? 'correct-glow' : ''}`}
-    >
-      <style>{`
+      <motion.div
+          layout="position"
+          className={`match-card ${isReadOnly && !showOddsAlways ? 'readonly-mode' : ''} ${isFinished ? 'is-finished-card' : ''} ${isCorrect ? 'correct-glow' : ''}`}
+      >
+        <style>{`
         .match-card {
           max-width: 600px;
           margin: 6px auto;
@@ -150,7 +152,7 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
           background: linear-gradient(145deg, #13241d, #101815) !important;
         }
         .readonly-mode {
-          opacity: 0.65;
+          opacity: 0.95;
         }
         .match-header-row {
           display: flex;
@@ -161,10 +163,37 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
           font-weight: 700;
           text-transform: uppercase;
         }
-        .match-date-static { color: #64748b; }
-        .match-countdown { color: #f6ad55; background: rgba(246, 173, 85, 0.08); padding: 2px 7px; border-radius: 6px; }
-        .match-countdown.blocked { color: #fc8181; background: rgba(252, 129, 129, 0.08); }
-        .match-countdown.finished { color: #4ade80; background: rgba(74, 222, 128, 0.08); font-weight: 800; font-size: 11px; }
+        .match-date-static { color: #64748b; font-size: 11px; }
+        
+        /* ⏱️ ТАЙМЕР (ЗМЕНШЕНО ВДВІЧІ) */
+        .match-countdown { 
+          color: #fb923c; 
+          background: rgba(251, 146, 60, 0.12); 
+          padding: 2px 7px; 
+          border-radius: 6px; 
+          font-size: 10px; 
+          font-weight: 800;
+          border: 1px solid rgba(251, 146, 60, 0.25);
+        }
+        .match-countdown.blocked { 
+          color: #f87171; 
+          background: rgba(248, 113, 113, 0.12); 
+          font-size: 10px; 
+          font-weight: 800;
+          border: 1px solid rgba(248, 113, 113, 0.25);
+        }
+
+        /* 🏁 РАХУНОК: НА СМАРТФОНАХ (-25% -> 16.5px) */
+        .match-countdown.finished { 
+          color: #22c55e; 
+          background: rgba(34, 197, 94, 0.15); 
+          font-weight: 900; 
+          font-size: 16.5px; 
+          letter-spacing: 0.04em;
+          padding: 2px 8px;
+          border: 1px solid rgba(34, 197, 94, 0.35);
+          text-shadow: 0 0 10px rgba(34, 197, 94, 0.35);
+        }
 
         .match-main-row { 
           display: flex; 
@@ -191,7 +220,6 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
         .team-block.home { justify-content: flex-start; }
         .team-block.away { justify-content: flex-end; }
         
-        /* 🏆 ЗБІЛЬШЕНІ ЛОГОТИПИ КЛУБІВ (+65%) */
         .club-logo { 
           width: 36px; 
           height: 36px; 
@@ -218,6 +246,7 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
           gap: 6px; 
           width: 100%; 
           justify-content: center; 
+          position: relative;
         }
         .odds-btn {
           flex: 1;
@@ -240,62 +269,158 @@ const MatchCard = ({ match, userPrediction, onMakePrediction, isReadOnly = false
         .odds-btn.selected {
           background: linear-gradient(135deg, #22c55e, #16a34a) !important;
           border-color: #22c55e !important;
+          opacity: 1 !important;
         }
-        .odds-btn.selected .odds-label { color: rgba(255,255,255,0.7) !important; }
+        .odds-btn.selected .odds-label { color: rgba(255,255,255,0.85) !important; }
         .odds-btn.selected .odds-num { color: #ffffff !important; }
-        .odds-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .odds-btn:disabled { 
+          cursor: default; 
+        }
 
+        /* 🌑 ТЬМЯНІСТЬ НЕОБРАНИХ КОЕФІЦІЄНТІВ У ЗАВЕРШЕНИХ МАТЧАХ */
+        .is-finished-card .odds-btn:not(.selected) {
+          opacity: 0.3 !important;
+          filter: grayscale(0.5);
+        }
+
+        .reveal-curtain-btn {
+          width: 100%;
+          padding: 8px 10px;
+          border-radius: 10px;
+          background: radial-gradient(circle, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
+          border: 1px dashed rgba(99, 102, 241, 0.4);
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          color: #a5b4fc;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.02em;
+          transition: all 0.2s ease;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        .reveal-curtain-btn:hover {
+          border-color: rgba(99, 102, 241, 0.8);
+          color: #ffffff;
+          background: rgba(30, 41, 59, 0.98);
+          transform: translateY(-1px);
+        }
+
+        /* 💻 СТИЛІ ДЛЯ ПК */
         @media (min-width: 520px) {
           .match-main-row { flex-direction: row; justify-content: space-between; }
           .team-block { width: 35%; font-size: 14px; gap: 12px; }
           .odds-container { width: 30%; }
           .club-logo { width: 40px; height: 40px; }
           .club-logo-placeholder { width: 40px; height: 40px; font-size: 12px; }
+          .match-countdown { font-size: 10px; padding: 2px 6px; }
+          .match-countdown.blocked { font-size: 10px; }
+          /* 🏁 РАХУНОК НА ПК (-50% -> 11px) */
+          .match-countdown.finished { font-size: 11px; padding: 2px 7px; }
         }
       `}</style>
 
-      <div className="match-header-row">
-        <div className="match-date-static">
-          {new Date(start_time).toLocaleString('uk-UA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-        </div>
-        {status === 'finished' ? (
-          <div className="match-countdown finished">🏁 {home_score}:{away_score}</div>
-        ) : (
-          <div className={`match-countdown ${isLiveOrPast ? 'blocked' : ''}`}>{timeLeft}</div>
-        )}
-      </div>
-
-      <div className="match-main-row">
-        <div className="team-block home">
-          {renderClubLogo(home_team)}
-          <span className="truncate" title={home_team}>{home_team}</span>
-        </div>
-
-        {shouldHidePrediction ? (
-          <div className="text-[10px] text-gray-500 py-1.5 px-3 bg-gray-950/40 rounded-lg border border-dashed border-gray-800">🔒 Приховано</div>
-        ) : (
-          <div className="odds-container">
-            <button disabled={isButtonDisabled} className={`odds-btn ${currentChoice === '1' ? 'selected' : ''}`} onClick={() => onMakePrediction(id, '1')}>
-              <span className="odds-label">П1</span>
-              <span className="odds-num">{home_odds?.toFixed(2) || '—'}</span>
-            </button>
-            <button disabled={isButtonDisabled} className={`odds-btn ${currentChoice === 'X' ? 'selected' : ''}`} onClick={() => onMakePrediction(id, 'X')}>
-              <span className="odds-label">X</span>
-              <span className="odds-num">{draw_odds?.toFixed(2) || '—'}</span>
-            </button>
-            <button disabled={isButtonDisabled} className={`odds-btn ${currentChoice === '2' ? 'selected' : ''}`} onClick={() => onMakePrediction(id, '2')}>
-              <span className="odds-label">П2</span>
-              <span className="odds-num">{away_odds?.toFixed(2) || '—'}</span>
-            </button>
+        <div className="match-header-row">
+          <div className="match-date-static">
+            {new Date(start_time).toLocaleString('uk-UA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
           </div>
-        )}
-
-        <div className="team-block away">
-          <span className="truncate" title={away_team}>{away_team}</span>
-          {renderClubLogo(away_team)}
+          {status === 'finished' ? (
+              <div className="match-countdown finished">🏁 {home_score}:{away_score}</div>
+          ) : (
+              <div className={`match-countdown ${isLiveOrPast ? 'blocked' : ''}`}>{timeLeft}</div>
+          )}
         </div>
-      </div>
-    </motion.div>
+
+        <div className="match-main-row">
+          <div className="team-block home">
+            {renderClubLogo(home_team)}
+            <span className="truncate" title={home_team}>{home_team}</span>
+          </div>
+
+          {/* 🎛️ БЛОК КОЕФІЦІЄНТІВ ТА ШТОРКИ */}
+          <div className="odds-container">
+            {isReadOnly && !showOddsAlways ? (
+                <div className="w-full relative">
+                  <AnimatePresence mode="wait">
+                    {!isRevealed ? (
+                        <motion.button
+                            key="locked"
+                            initial={{ opacity: 0, rotateX: -60, scale: 0.95 }}
+                            animate={{ opacity: 1, rotateX: 0, scale: 1 }}
+                            exit={{ opacity: 0, rotateX: 60, scale: 0.95 }}
+                            transition={{ duration: 0.22, ease: "easeInOut" }}
+                            onClick={() => setIsRevealed(true)}
+                            className="reveal-curtain-btn"
+                        >
+                          <span>🔒</span>
+                          <span>Підглянути</span>
+                        </motion.button>
+                    ) : (
+                        <motion.div
+                            key="unlocked"
+                            initial={{ opacity: 0, rotateX: 60, scale: 0.95 }}
+                            animate={{ opacity: 1, rotateX: 0, scale: 1 }}
+                            exit={{ opacity: 0, rotateX: -60, scale: 0.95 }}
+                            transition={{ duration: 0.22, ease: "easeInOut" }}
+                            onClick={() => setIsRevealed(false)}
+                            className="flex gap-1.5 w-full cursor-pointer relative group"
+                            title="Натисніть, щоб приховати назад"
+                        >
+                          <button disabled className={`odds-btn ${currentChoice === '1' ? 'selected' : ''}`}>
+                            <span className="odds-label">П1</span>
+                            <span className="odds-num">{home_odds?.toFixed(2) || '—'}</span>
+                          </button>
+                          <button disabled className={`odds-btn ${currentChoice === 'X' ? 'selected' : ''}`}>
+                            <span className="odds-label">X</span>
+                            <span className="odds-num">{draw_odds?.toFixed(2) || '—'}</span>
+                          </button>
+                          <button disabled className={`odds-btn ${currentChoice === '2' ? 'selected' : ''}`}>
+                            <span className="odds-label">П2</span>
+                            <span className="odds-num">{away_odds?.toFixed(2) || '—'}</span>
+                          </button>
+                        </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+            ) : (
+                // Режим відображення
+                <>
+                  <button
+                      disabled={isButtonDisabled}
+                      className={`odds-btn ${currentChoice === '1' ? 'selected' : ''}`}
+                      onClick={() => onMakePrediction && onMakePrediction(id, '1')}
+                  >
+                    <span className="odds-label">П1</span>
+                    <span className="odds-num">{home_odds?.toFixed(2) || '—'}</span>
+                  </button>
+                  <button
+                      disabled={isButtonDisabled}
+                      className={`odds-btn ${currentChoice === 'X' ? 'selected' : ''}`}
+                      onClick={() => onMakePrediction && onMakePrediction(id, 'X')}
+                  >
+                    <span className="odds-label">X</span>
+                    <span className="odds-num">{draw_odds?.toFixed(2) || '—'}</span>
+                  </button>
+                  <button
+                      disabled={isButtonDisabled}
+                      className={`odds-btn ${currentChoice === '2' ? 'selected' : ''}`}
+                      onClick={() => onMakePrediction && onMakePrediction(id, '2')}
+                  >
+                    <span className="odds-label">П2</span>
+                    <span className="odds-num">{away_odds?.toFixed(2) || '—'}</span>
+                  </button>
+                </>
+            )}
+          </div>
+
+          <div className="team-block away">
+            <span className="truncate" title={away_team}>{away_team}</span>
+            {renderClubLogo(away_team)}
+          </div>
+        </div>
+      </motion.div>
   );
 };
 
